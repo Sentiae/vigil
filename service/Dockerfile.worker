@@ -1,0 +1,106 @@
+# syntax=docker/dockerfile:1.6
+
+# ===========================================================================
+# Stage 1 — Build the worker Go binary.
+# ===========================================================================
+FROM golang:1.25-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates
+
+ARG GITHUB_TOKEN
+ENV GOPRIVATE=github.com/sentiae/*
+RUN git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+WORKDIR /app
+
+COPY platform-kit/ /platform-kit/
+COPY code-analysis-service/go.mod code-analysis-service/go.sum ./
+RUN go mod download
+COPY code-analysis-service/ .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /worker cmd/worker/main.go
+
+# scip CLI (proto manipulation). Compiled out-of-module so no go.mod churn.
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOBIN=/out CGO_ENABLED=0 GOOS=linux go install github.com/sourcegraph/scip/cmd/scip@latest \
+ && mv /out/scip /scip
+
+# ===========================================================================
+# Stage 2 — scip-go is pre-compiled here so the final image stays Go-free.
+# ===========================================================================
+FROM golang:1.25-alpine AS scip-go-builder
+RUN apk add --no-cache git ca-certificates
+RUN CGO_ENABLED=0 go install github.com/sourcegraph/scip-go/cmd/scip-go@latest
+
+# ===========================================================================
+# Stage 3 — Scanner tools stage. This is the fat image: it carries Trivy,
+# Semgrep, Gitleaks, TruffleHog PLUS every SCIP indexer CLI so the worker
+# can produce a SCIP proto for every supported language without
+# shelling out to a missing binary.
+# ===========================================================================
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        python3 \
+        python3-pip \
+        python3-venv \
+        xz-utils \
+        gnupg \
+ && rm -rf /var/lib/apt/lists/*
+
+# --- Node 20 + npm for scip-typescript. Ubuntu 22.04 ships Node 12 which
+# is too old for scip-typescript so we install the NodeSource build.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+ && apt-get update && apt-get install -y --no-install-recommends nodejs \
+ && rm -rf /var/lib/apt/lists/* \
+ && npm install -g @sourcegraph/scip-typescript \
+ && ln -sf /usr/bin/scip-typescript /usr/local/bin/scip-typescript
+
+# --- Security scanners.
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+RUN pip3 install --no-cache-dir semgrep
+RUN curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o /usr/local/bin/gitleaks \
+ && chmod +x /usr/local/bin/gitleaks
+RUN curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+
+# --- SCIP indexers.
+RUN pip3 install --no-cache-dir scip-python
+COPY --from=scip-go-builder /go/bin/scip-go /usr/local/bin/scip-go
+COPY --from=builder /scip /usr/local/bin/scip
+
+# --- scip-rust: via rust-analyzer's `scip` subcommand (official binary).
+ARG RUST_ANALYZER_VERSION=2024-12-30
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "${arch}" in \
+      amd64) ra_target="x86_64-unknown-linux-gnu" ;; \
+      arm64) ra_target="aarch64-unknown-linux-gnu" ;; \
+      *) echo "unsupported arch: ${arch}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/rust-lang/rust-analyzer/releases/download/${RUST_ANALYZER_VERSION}/rust-analyzer-${ra_target}.gz" -o /tmp/ra.gz; \
+    gunzip -c /tmp/ra.gz > /usr/local/bin/rust-analyzer; \
+    rm -f /tmp/ra.gz; \
+    chmod +x /usr/local/bin/rust-analyzer; \
+    printf '#!/bin/sh\nexec /usr/local/bin/rust-analyzer scip "$@"\n' > /usr/local/bin/scip-rust; \
+    chmod +x /usr/local/bin/scip-rust
+
+# Sanity check: fail the build if any SCIP binary is missing on PATH.
+RUN which scip-typescript scip-python scip-go scip-rust scip
+
+COPY --from=builder /worker /usr/local/bin/worker
+COPY --from=builder /app/configs /app/configs
+
+WORKDIR /app
+
+LABEL org.opencontainers.image.description="Code Analysis Worker (Vigil) — scanner + SCIP indexer tools"
+
+ENTRYPOINT ["worker"]

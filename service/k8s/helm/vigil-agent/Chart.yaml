@@ -1,0 +1,6 @@
+apiVersion: v2
+name: vigil-agent
+description: Vigil eBPF runtime agent (DaemonSet) and Kubernetes operator
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

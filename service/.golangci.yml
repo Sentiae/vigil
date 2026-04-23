@@ -1,0 +1,54 @@
+version: "2"
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosec
+
+linters-settings:
+  gosec:
+    excludes:
+      - "G102"
+  depguard:
+    rules:
+      Main:
+        files:
+          - "$all"
+          - "!$test"
+        allow:
+          - "$gostd"
+          - "github.com"
+          - "go.opentelemetry.io"
+          - "go.uber.org"
+          - "golang.org"
+          - "google.golang.org"
+        deny:
+          - pkg: "github.com/sirupsen/logrus"
+            desc: "Use pkg/logger instead"
+          - pkg: "github.com/gorilla/mux"
+            desc: "Use github.com/go-chi/chi/v5 instead"
+          - pkg: "gorm.io/gorm"
+            desc: "This service uses pgx/v5 directly, not GORM"
+
+      domain:
+        files:
+          - "**/internal/domain/**/*.go"
+        deny:
+          - pkg: "github.com/sentiae/code-analysis-service/internal/usecase"
+            desc: "Domain layer must not import Usecase layer"
+          - pkg: "github.com/sentiae/code-analysis-service/internal/adapter"
+            desc: "Domain layer must not import Adapter layer"
+
+      usecase:
+        files:
+          - "**/internal/usecase/**/*.go"
+        deny:
+          - pkg: "github.com/sentiae/code-analysis-service/internal/adapter"
+            desc: "Usecase layer must not import Adapter layer (use port interfaces)"

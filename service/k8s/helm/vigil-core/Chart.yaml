@@ -1,0 +1,15 @@
+apiVersion: v2
+name: vigil-core
+description: Vigil security intelligence control plane (API, orchestrator, findings, ingestion)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - security
+  - vulnerability
+  - compliance
+  - sast
+  - sca
+maintainers:
+  - name: Sentiae
+    url: https://sentiae.com

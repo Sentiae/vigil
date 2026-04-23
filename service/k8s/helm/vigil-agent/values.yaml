@@ -1,0 +1,38 @@
+agent:
+  image:
+    repository: vigil-agent
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  controlPlaneURL: http://vigil-core:8080
+  walDir: /var/lib/vigil/wal
+  auditListenAddr: ":9443"
+  bootstrapToken:
+    existingSecret: vigil-agent-bootstrap
+    key: token
+
+operator:
+  enabled: true
+  replicas: 1
+  leaderElect: true
+  image:
+    repository: vigil-agent
+    tag: latest
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+crds:
+  install: true
+
+namespace: vigil-system

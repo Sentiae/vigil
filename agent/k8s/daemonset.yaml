@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vigil-agent
+  namespace: vigil-system
+  labels:
+    app.kubernetes.io/name: vigil-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: vigil
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vigil-agent
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vigil-agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: vigil-agent
+      hostPID: true        # Required for eBPF process visibility
+      hostNetwork: false
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+      containers:
+        - name: agent
+          image: vigil-agent:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: VIGIL_CONTROL_PLANE_URL
+              value: "http://vigil-service.vigil-system.svc:8080"
+            - name: VIGIL_BOOTSTRAP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vigil-agent-bootstrap
+                  key: token
+            - name: VIGIL_WAL_DIR
+              value: "/var/lib/vigil/wal"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            privileged: false
+            capabilities:
+              add:
+                - BPF             # Load eBPF programs
+                - PERFMON          # Attach to perf events
+                - SYS_PTRACE       # Read /proc for container context
+                - NET_ADMIN        # Network monitoring
+              drop:
+                - ALL
+          volumeMounts:
+            - name: wal
+              mountPath: /var/lib/vigil/wal
+            - name: sys-kernel-debug
+              mountPath: /sys/kernel/debug
+              readOnly: true
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: btf
+              mountPath: /sys/kernel/btf
+              readOnly: true
+      volumes:
+        - name: wal
+          hostPath:
+            path: /var/lib/vigil/wal
+            type: DirectoryOrCreate
+        - name: sys-kernel-debug
+          hostPath:
+            path: /sys/kernel/debug
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: btf
+          hostPath:
+            path: /sys/kernel/btf
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vigil-agent
+  namespace: vigil-system
+  labels:
+    app.kubernetes.io/name: vigil-agent
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vigil-system
+  labels:
+    app.kubernetes.io/part-of: vigil
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vigil-agent-bootstrap
+  namespace: vigil-system
+type: Opaque
+stringData:
+  token: "changeme-bootstrap-token-generate-via-api"

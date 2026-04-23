@@ -1,0 +1,152 @@
+syntax = "proto3";
+
+package security.v1;
+
+option go_package = "github.com/sentiae/code-analysis-service/gen/security/v1;securityv1";
+
+import "google/protobuf/timestamp.proto";
+
+// AgentService is the gRPC service for agent <-> control plane communication.
+service AgentService {
+  // RegisterAgent registers a new agent and returns mTLS credentials.
+  rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
+
+  // Heartbeat sends periodic health status from the agent.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // StreamEvents is a bidirectional stream for real-time telemetry.
+  // Agent sends eBPF events, control plane sends config updates.
+  rpc StreamEvents(stream AgentEvent) returns (stream ControlCommand);
+
+  // GetConfig fetches the current monitoring configuration for the agent.
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+}
+
+// --- Registration ---
+
+message RegisterAgentRequest {
+  string bootstrap_token = 1;  // Time-limited JWT for initial registration
+  string hostname = 2;
+  string agent_type = 3;       // cluster, cicd, cloud, network
+  string version = 4;
+  string kernel_version = 5;
+  bool btf_supported = 6;      // Whether kernel has BTF/CO-RE support
+}
+
+message RegisterAgentResponse {
+  string agent_id = 1;
+  bytes client_cert = 2;        // PEM-encoded mTLS client certificate
+  bytes client_key = 3;         // PEM-encoded mTLS client private key
+  bytes ca_cert = 4;            // PEM-encoded CA certificate
+  int32 heartbeat_interval_sec = 5;  // How often to heartbeat (default 30)
+  MonitoringConfig initial_config = 6;
+}
+
+// --- Heartbeat ---
+
+message HeartbeatRequest {
+  string agent_id = 1;
+  double cpu_usage_pct = 2;
+  double memory_usage_pct = 3;
+  int64 events_processed = 4;
+  int64 events_dropped = 5;
+  int32 active_probes = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+message HeartbeatResponse {
+  string status = 1;            // ok, reconfigure, shutdown
+  MonitoringConfig config = 2;  // Optional updated config
+}
+
+// --- Event Streaming ---
+
+message AgentEvent {
+  string agent_id = 1;
+  string event_type = 2;        // process_exec, file_access, network_connect, privilege_escalation, container_escape
+  google.protobuf.Timestamp timestamp = 3;
+
+  // Process events
+  ProcessEvent process = 10;
+
+  // File events
+  FileEvent file = 11;
+
+  // Network events
+  NetworkEvent network = 12;
+
+  // Container context
+  ContainerContext container = 20;
+}
+
+message ProcessEvent {
+  uint32 pid = 1;
+  uint32 ppid = 2;
+  uint32 uid = 3;
+  string comm = 4;              // Process name
+  string exe = 5;               // Full executable path
+  repeated string args = 6;
+  string cwd = 7;
+}
+
+message FileEvent {
+  uint32 pid = 1;
+  string path = 2;
+  string operation = 3;         // open, write, unlink
+  uint32 flags = 4;
+}
+
+message NetworkEvent {
+  uint32 pid = 1;
+  string src_addr = 2;
+  uint32 src_port = 3;
+  string dst_addr = 4;
+  uint32 dst_port = 5;
+  string protocol = 6;          // tcp, udp
+  string operation = 7;         // connect, accept, bind
+}
+
+message ContainerContext {
+  string container_id = 1;
+  string container_name = 2;
+  string image = 3;
+  string namespace = 4;         // Kubernetes namespace
+  string pod_name = 5;
+}
+
+// --- Control Commands (server -> agent) ---
+
+message ControlCommand {
+  string command_type = 1;      // update_config, enable_probe, disable_probe, shutdown
+  MonitoringConfig config = 2;
+  string probe_name = 3;
+}
+
+// --- Configuration ---
+
+message GetConfigRequest {
+  string agent_id = 1;
+}
+
+message GetConfigResponse {
+  MonitoringConfig config = 1;
+}
+
+message MonitoringConfig {
+  repeated string enabled_probes = 1;  // execve, openat, connect, setuid, setns, init_module
+  repeated RuntimeRule rules = 2;
+  int32 ring_buffer_size_kb = 3;       // Default 256
+  bool collect_process_args = 4;
+  bool collect_file_content = 5;
+  repeated string ignored_paths = 6;   // Paths to exclude from monitoring
+  repeated string ignored_processes = 7;
+}
+
+message RuntimeRule {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string severity = 4;         // critical, high, medium, low
+  string condition = 5;        // YAML/JSON rule expression
+  bool enabled = 6;
+}

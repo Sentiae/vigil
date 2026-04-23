@@ -1,0 +1,64 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: vigil-pod-security
+  labels:
+    app.kubernetes.io/name: vigil-agent
+    app.kubernetes.io/component: admission-webhook
+spec:
+  webhooks:
+    - name: pod-security.vigil.sentiae.com
+      admissionReviewVersions: ["v1"]
+      sideEffects: None
+      failurePolicy: Ignore  # Don't block pods if webhook is down
+      matchPolicy: Equivalent
+      clientConfig:
+        service:
+          name: vigil-webhook
+          namespace: vigil-system
+          path: /validate-pod
+          port: 443
+        # caBundle will be injected by cert-manager or webhook setup job
+      rules:
+        - apiGroups: [""]
+          apiVersions: ["v1"]
+          operations: ["CREATE"]
+          resources: ["pods"]
+          scope: Namespaced
+      namespaceSelector:
+        matchExpressions:
+          - key: vigil.sentiae.com/enforce
+            operator: In
+            values: ["true"]
+      objectSelector:
+        matchExpressions:
+          - key: app.kubernetes.io/part-of
+            operator: NotIn
+            values: ["vigil"]  # Don't validate our own pods
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vigil-webhook
+  namespace: vigil-system
+  labels:
+    app.kubernetes.io/name: vigil-webhook
+spec:
+  ports:
+    - port: 443
+      targetPort: 8443
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: vigil-agent
+---
+# The admission webhook handler runs as a sidecar or dedicated pod.
+# It checks pod specs for:
+# - Privileged containers
+# - Missing resource limits
+# - Images from untrusted registries
+# - Host namespace access (hostPID, hostNetwork, hostIPC)
+# - Missing security contexts
+# - Containers running as root
+#
+# The webhook logic is implemented in the agent handler's ValidatePod() method.
+# To deploy: label namespaces with `vigil.sentiae.com/enforce=true`

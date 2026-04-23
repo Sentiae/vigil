@@ -1,0 +1,32 @@
+replicaCount: 3
+
+image:
+  repository: vigil-service-worker
+  tag: latest
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: "2"
+    memory: 2Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 60
+
+database:
+  host: postgres
+  port: "5432"
+  name: code_analysis_service
+  existingSecret: vigil-db-credentials
+
+redis:
+  addr: redis:6379
+
+kafka:
+  brokers: kafka:9094

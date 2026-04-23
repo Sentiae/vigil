@@ -1,0 +1,108 @@
+package usecase
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
+
+	"github.com/sentiae/vigil/service/internal/domain"
+	"github.com/sentiae/vigil/service/internal/port/repository"
+	portuc "github.com/sentiae/vigil/service/internal/port/usecase"
+	"github.com/sentiae/vigil/service/pkg/events"
+	"github.com/sentiae/vigil/service/pkg/logger"
+)
+
+type scanService struct {
+	scanRepo  repository.ScanRepository
+	publisher events.Publisher
+	asynqClient *asynq.Client
+}
+
+func NewScanService(
+	scanRepo repository.ScanRepository,
+	publisher events.Publisher,
+	asynqClient *asynq.Client,
+) portuc.ScanUseCase {
+	return &scanService{
+		scanRepo:    scanRepo,
+		publisher:   publisher,
+		asynqClient: asynqClient,
+	}
+}
+
+func (s *scanService) TriggerScan(ctx context.Context, input portuc.TriggerScanInput) (*domain.Scan, error) {
+	now := time.Now()
+
+	scan := &domain.Scan{
+		ID:          uuid.New(),
+		TenantID:    input.TenantID,
+		Type:        input.ScanType,
+		Target:      input.Target,
+		Branch:      input.Branch,
+		Status:      domain.ScanStatusQueued,
+		Priority:    input.Priority,
+		TriggeredBy: input.TriggeredBy,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := scan.Validate(); err != nil {
+		return nil, err
+	}
+
+	if err := s.scanRepo.Create(ctx, scan); err != nil {
+		return nil, fmt.Errorf("create scan: %w", err)
+	}
+
+	// Enqueue asynq task for the worker
+	if s.asynqClient != nil {
+		taskType := fmt.Sprintf("scan:%s", scan.Type)
+		payload := fmt.Sprintf(`{"scan_id":"%s","tenant_id":"%s","target":"%s","branch":"%s"}`,
+			scan.ID, scan.TenantID, scan.Target, scan.Branch)
+
+		queue := "default"
+		if scan.Priority == "critical" {
+			queue = "critical"
+		}
+
+		task := asynq.NewTask(taskType, []byte(payload))
+		if _, err := s.asynqClient.Enqueue(task, asynq.Queue(queue)); err != nil {
+			logger.Warn(ctx, "Failed to enqueue scan task", "error", err, "scan_id", scan.ID)
+		}
+	}
+
+	// Publish scan started event (async — don't block the API response)
+	if s.publisher != nil {
+		go func() {
+			publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := s.publisher.Publish(publishCtx, events.EventScanStarted, events.EventData{
+				ActorID:      input.TriggeredBy,
+				ActorType:    "user",
+				ResourceType: "scan",
+				ResourceID:   scan.ID.String(),
+				Metadata: map[string]any{
+					"scan_id":   scan.ID.String(),
+					"scan_type": string(scan.Type),
+					"target":    scan.Target,
+				},
+				Timestamp: now,
+			}); err != nil {
+				logger.Warn(publishCtx, "Failed to publish scan started event", "error", err)
+			}
+		}()
+	}
+
+	return scan, nil
+}
+
+func (s *scanService) GetScan(ctx context.Context, tenantID, id uuid.UUID) (*domain.Scan, error) {
+	return s.scanRepo.FindByID(ctx, tenantID, id)
+}
+
+func (s *scanService) ListScans(ctx context.Context, filter repository.ScanFilter) ([]*domain.Scan, int, error) {
+	return s.scanRepo.List(ctx, filter)
+}

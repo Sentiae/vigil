@@ -1,0 +1,55 @@
+server:
+  port: "8091"
+  grpc_port: 50054
+  environment: "development"
+  log_level: "info"
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+
+database:
+  host: "localhost"
+  port: "5432"
+  user: "postgres"
+  password: "postgres"
+  name: "code_analysis_service"
+  ssl_mode: "disable"
+  max_open_conns: 200
+  max_idle_conns: 50
+  max_lifetime: 5m
+
+clickhouse:
+  addr: "localhost:9005"
+  database: "code_analysis"
+  user: "default"
+  password: "clickhouse"
+
+neo4j:
+  uri: "bolt://localhost:7687"
+  user: "neo4j"
+  password: "neo4jpassword"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+kafka:
+  brokers:
+    - "localhost:9092"
+  topic_prefix: "sentiae"
+  client_id: "vigil-service"
+  group_id: "vigil-service-group"
+
+s3:
+  endpoint: "localhost:9000"
+  bucket: "sentiae-security-artifacts"
+  access_key_id: "minioadmin"
+  secret_access_key: "minioadmin"
+  region: "us-east-1"
+  use_ssl: false
+
+telemetry:
+  service_name: "vigil-service"
+  otlp_endpoint: "localhost:4317"
+  metric_port: "9092"

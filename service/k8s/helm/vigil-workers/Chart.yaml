@@ -1,0 +1,6 @@
+apiVersion: v2
+name: vigil-workers
+description: Vigil scanner workers (asynq task processors with bundled scanner tools)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

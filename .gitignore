@@ -1,0 +1,41 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+*.out
+
+# Agent binaries
+agent/agent
+agent/operator
+
+# Service binaries
+service/server
+service/worker
+
+# Shared binaries
+shared/*.test
+
+# Build artifacts
+dist/
+
+# Environment files
+*.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

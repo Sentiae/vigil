@@ -1,0 +1,77 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: securityagents.vigil.sentiae.com
+spec:
+  group: vigil.sentiae.com
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                agentType:
+                  type: string
+                  enum: [cluster, cicd, cloud, network]
+                  default: cluster
+                enabledProbes:
+                  type: array
+                  items:
+                    type: string
+                  default: ["execve", "openat", "connect"]
+                ringBufferSizeKB:
+                  type: integer
+                  default: 256
+                collectProcessArgs:
+                  type: boolean
+                  default: true
+                ignoredPaths:
+                  type: array
+                  items:
+                    type: string
+                  default: ["/proc", "/sys", "/dev"]
+                ignoredProcesses:
+                  type: array
+                  items:
+                    type: string
+                  default: ["containerd-shim", "runc"]
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Running, Degraded, Offline]
+                lastHeartbeat:
+                  type: string
+                  format: date-time
+                eventsProcessed:
+                  type: integer
+                version:
+                  type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Type
+          type: string
+          jsonPath: .spec.agentType
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: Events
+          type: integer
+          jsonPath: .status.eventsProcessed
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+  scope: Namespaced
+  names:
+    plural: securityagents
+    singular: securityagent
+    kind: SecurityAgent
+    shortNames:
+      - sa

@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vigil-operator
+  namespace: vigil-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vigil-operator
+rules:
+  # SecurityAgent CRD
+  - apiGroups: ["vigil.sentiae.com"]
+    resources: ["securityagents"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["vigil.sentiae.com"]
+    resources: ["securityagents/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["vigil.sentiae.com"]
+    resources: ["securityagents/finalizers"]
+    verbs: ["update"]
+
+  # SecurityPolicy CRD
+  - apiGroups: ["vigil.sentiae.com"]
+    resources: ["securitypolicies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["vigil.sentiae.com"]
+    resources: ["securitypolicies/status"]
+    verbs: ["get", "update", "patch"]
+
+  # MonitoringConfig CRD
+  - apiGroups: ["vigil.sentiae.com"]
+    resources: ["monitoringconfigs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["vigil.sentiae.com"]
+    resources: ["monitoringconfigs/status"]
+    verbs: ["get", "update", "patch"]
+
+  # Pods — needed for DaemonSet management and admission webhook
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+
+  # Events — for recording reconciliation events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+
+  # Leader election
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vigil-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vigil-operator
+subjects:
+  - kind: ServiceAccount
+    name: vigil-operator
+    namespace: vigil-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vigil-operator
+  namespace: vigil-system
+  labels:
+    app.kubernetes.io/name: vigil-operator
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/part-of: vigil
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vigil-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vigil-operator
+    spec:
+      serviceAccountName: vigil-operator
+      containers:
+        - name: operator
+          image: vigil-agent:latest
+          command: ["/app/operator"]
+          args:
+            - --leader-elect=true
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+          ports:
+            - containerPort: 8080
+              name: metrics
+            - containerPort: 8081
+              name: health
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10

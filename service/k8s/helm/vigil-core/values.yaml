@@ -1,0 +1,84 @@
+replicaCount: 2
+
+image:
+  repository: vigil-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  httpPort: 8080
+  grpcPort: 50054
+  metricsPort: 9092
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+env:
+  APP_SERVER_PORT: "8080"
+  APP_SERVER_ENVIRONMENT: "production"
+  APP_SERVER_LOG_LEVEL: "info"
+  APP_GRPC_PORT: "50054"
+
+database:
+  host: postgres
+  port: "5432"
+  name: code_analysis_service
+  sslMode: require
+  maxOpenConns: 200
+  maxIdleConns: 50
+  existingSecret: vigil-db-credentials
+  secretKeys:
+    user: username
+    password: password
+
+clickhouse:
+  addr: clickhouse:9000
+  database: code_analysis
+  existingSecret: vigil-clickhouse-credentials
+
+neo4j:
+  uri: bolt://neo4j:7687
+  existingSecret: vigil-neo4j-credentials
+
+redis:
+  addr: redis:6379
+  existingSecret: ""
+
+kafka:
+  brokers: kafka:9094
+  topicPrefix: sentiae
+  clientId: vigil-service
+
+s3:
+  endpoint: minio:9000
+  bucket: sentiae-security-artifacts
+  existingSecret: vigil-s3-credentials
+
+observability:
+  otlpEndpoint: otel-collector:4317
+  metricsPort: "9092"
+
+serviceAccount:
+  create: true
+  name: vigil-core
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9092"
+  prometheus.io/path: "/metrics"
