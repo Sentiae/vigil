@@ -140,6 +140,11 @@ func (c *Container) setupInfrastructure() {
 		} else {
 			c.eventPublisher = pub
 			logger.Info(context.TODO(), "Kafka publisher initialized")
+			ensureCtx, ensureCancel := context.WithTimeout(context.Background(), 15*time.Second)
+			if err := pub.EnsureTopics(ensureCtx); err != nil {
+				logger.Warn(ensureCtx, "Kafka EnsureTopics failed", "error", err)
+			}
+			ensureCancel()
 		}
 	}
 

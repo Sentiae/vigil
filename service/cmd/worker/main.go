@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hibiken/asynq"
 
@@ -76,6 +77,11 @@ func main() {
 		} else {
 			publisher = pub
 			defer pub.Close()
+			ensureCtx, ensureCancel := context.WithTimeout(context.Background(), 15*time.Second)
+			if err := pub.EnsureTopics(ensureCtx); err != nil {
+				logger.Warn(ctx, "Kafka EnsureTopics failed", "error", err)
+			}
+			ensureCancel()
 		}
 	}
 
