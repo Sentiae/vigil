@@ -14,9 +14,9 @@ import (
 	"github.com/sentiae/vigil/service/internal/app"
 	"github.com/sentiae/vigil/service/pkg/config"
 	"github.com/sentiae/vigil/service/pkg/logger"
-	"github.com/sentiae/vigil/service/pkg/telemetry"
 	pkdebug "github.com/sentiae/platform-kit/debug"
 	pkkafka "github.com/sentiae/platform-kit/kafka"
+	otelkit "github.com/sentiae/platform-kit/otel"
 )
 
 var (
@@ -65,12 +65,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 2. Initialize Logger
-	logger.Init(cfg.Server.LogLevel)
-	logger.Info(ctx, "Starting vigil-service", "version", Version, "build_time", BuildTime)
-
-	// 3. Initialize Telemetry (Tracing & Metrics)
-	shutdownTelemetry, err := telemetry.Init(cfg.Telemetry)
+	// 2. Initialize Telemetry (traces, metrics & logs → OTLP collector). Runs
+	// before the logger so SlogHandler binds to the global logger provider set
+	// here, not the no-op default.
+	shutdownTelemetry, err := otelkit.Init(ctx, otelkit.Config{
+		ServiceName:    cfg.Telemetry.ServiceName,
+		ServiceVersion: Version,
+		Environment:    cfg.Server.Environment,
+		Endpoint:       cfg.Telemetry.OTLPEndpoint,
+		Insecure:       true,
+	})
 	if err != nil {
 		logger.Error(ctx, "Failed to init telemetry", "error", err)
 	}
@@ -80,6 +84,9 @@ func main() {
 		}
 	}()
 
+	// 3. Initialize Logger (tees stdout JSON + trace-correlated OTLP logs).
+	logger.Init(cfg.Server.LogLevel, otelkit.SlogHandler(cfg.Telemetry.ServiceName))
+	logger.Info(ctx, "Starting vigil-service", "version", Version, "build_time", BuildTime)
 	logger.Info(ctx, "Environment", "env", cfg.Server.Environment)
 
 	// 4. Create and wire the server
