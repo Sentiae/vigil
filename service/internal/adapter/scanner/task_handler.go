@@ -84,6 +84,12 @@ func (h *TaskHandler) HandleScanTask(scanType domain.ScanType) asynq.HandlerFunc
 				Type: "url",
 				URI:  payload.Target,
 			}
+		} else if isImageTarget(scanType) {
+			// Container scans target an OCI image reference — no cloning needed
+			target = portscanner.ScanTarget{
+				Type: "image",
+				URI:  payload.Target,
+			}
 		} else {
 			// Code scans need a cloned repository
 			localPath, cleanup, err := CloneRepository(ctx, payload.Target, payload.Branch)
@@ -110,6 +116,16 @@ func (h *TaskHandler) HandleScanTask(scanType domain.ScanType) asynq.HandlerFunc
 			h.publishScanFailed(ctx, scan, err)
 			return fmt.Errorf("run scan: %w", err)
 		}
+
+		// Count what THIS scan's scanners produced, by severity. This is the
+		// deploy-gate signal ("does this image have a critical") and is scan-
+		// scoped — independent of the tenant-global dedup pool that IngestFindings
+		// writes into.
+		severityCounts := make(map[domain.Severity]int, len(findings))
+		for _, f := range findings {
+			severityCounts[f.Severity]++
+		}
+		scan.SetSeverityCounts(severityCounts)
 
 		// Ingest findings
 		created, updated := 0, 0
@@ -163,6 +179,12 @@ func isURLTarget(scanType domain.ScanType) bool {
 		return true
 	}
 	return false
+}
+
+// isImageTarget returns true for scan types that target an OCI image reference
+// instead of a git repo or live URL.
+func isImageTarget(scanType domain.ScanType) bool {
+	return scanType == domain.ScanTypeContainer
 }
 
 func (h *TaskHandler) publishScanFailed(ctx context.Context, scan *domain.Scan, scanErr error) {

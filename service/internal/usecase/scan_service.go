@@ -70,7 +70,14 @@ func (s *scanService) TriggerScan(ctx context.Context, input portuc.TriggerScanI
 
 		task := asynq.NewTask(taskType, []byte(payload))
 		if _, err := s.asynqClient.Enqueue(task, asynq.Queue(queue)); err != nil {
-			logger.Warn(ctx, "Failed to enqueue scan task", "error", err, "scan_id", scan.ID)
+			// Fail closed: a scan that never enqueues would sit queued forever and a
+			// caller (e.g. the delivery gate) would poll to timeout. Mark it failed
+			// and return so the failure is immediate and honest.
+			scan.MarkFailed(fmt.Sprintf("enqueue failed: %v", err))
+			if uerr := s.scanRepo.Update(ctx, scan); uerr != nil {
+				logger.Error(ctx, "Failed to mark scan as failed after enqueue error", "error", uerr, "scan_id", scan.ID)
+			}
+			return nil, fmt.Errorf("enqueue scan task: %w", err)
 		}
 	}
 

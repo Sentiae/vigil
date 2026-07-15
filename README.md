@@ -140,6 +140,10 @@ This tags the release as `vigil-1.0.0` and builds both binaries with the same ve
 - `service/CLAUDE.md` — Service development guide
 - `service/migrations/` — Database schema changes
 
+## Deviation
+
+Per root `CLAUDE.md` §32, Vigil intentionally deviates from the canonical service template and retains its pre-existing stack: **pgx/v5 with raw SQL (not GORM), Atlas migrations (not golang-migrate), and a Chi HTTP server** for its portal-facing REST surface. These predate the constitution and the portal depends on the Chi surface, so they are kept intact. As of the P13 seam, the `service` module **also serves gRPC** (`CodeAnalysisService`, `:50054`) alongside the Chi HTTP server so the delivery deploy gate and other internal callers (ops/git/foundry) can reach Vigil's scan surface machine-to-machine; the gRPC server uses a plain `grpc.NewServer` with recovery + OTel + logging interceptors (not the platform-kit `grpcserver`/mesh stack — Vigil is not a SPIFFE/mTLS mesh workload). Caller auth is the **shared platform internal service token via `x-api-key`** (`APP_INTERNAL_SERVICE_TOKEN`, constant-time compare, empty → trust in-cluster), mirroring catalog-service; because the plain server can't use platform-kit's full `NewChain` (which pulls the SVID/tenant/mesh stack Vigil isn't wired for), only the standalone `interceptor.UnaryAuth` is added after the local recovery + logging. On the homelab `APP_INTERNAL_SERVICE_TOKEN` is empty so callers (e.g. the delivery deploy gate) are trusted in-cluster; in prod a set value is enforced.
+
 ## License
 
 Proprietary — Sentiae Inc.

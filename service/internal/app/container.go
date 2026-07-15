@@ -97,6 +97,7 @@ type Container struct {
 	codeIntelligenceHandler *httphandler.CodeIntelligenceHandler
 	eventConsumer           *eventhandler.Consumer
 	agentHandler            *grpchandler.AgentHandler
+	codeAnalysisHandler     *grpchandler.CodeAnalysisHandler
 
 	// §11.2 code intelligence
 	embeddingIndexer *usecase.EmbeddingIndexer
@@ -235,6 +236,11 @@ func (c *Container) setupHandlers() {
 	c.complianceHandler = httphandler.NewComplianceHandler(c.complianceUC)
 	c.assetHandler = httphandler.NewAssetHandler(c.graphRepo)
 	c.attackChainHandler = httphandler.NewAttackChainHandler(c.attackChainSvc)
+
+	// P13 CodeAnalysisService gRPC seam — thin adapter over the same scan +
+	// finding use cases the Chi HTTP handlers use, re-expressed over gRPC for
+	// inter-service callers (ops/git/foundry/delivery).
+	c.codeAnalysisHandler = grpchandler.NewCodeAnalysisHandler(c.scanUC, c.findingUC)
 
 	// §11.2 — code intelligence.
 	// The DI wiring here is best-effort: when dependencies are
@@ -394,6 +400,9 @@ func (c *Container) SLAService() *usecase.SLAService                   { return 
 func (c *Container) GraphRepo() repository.GraphRepository              { return c.graphRepo }
 func (c *Container) AssetHandler() *httphandler.AssetHandler             { return c.assetHandler }
 func (c *Container) AgentHandler() *grpchandler.AgentHandler             { return c.agentHandler }
+func (c *Container) CodeAnalysisHandler() *grpchandler.CodeAnalysisHandler {
+	return c.codeAnalysisHandler
+}
 func (c *Container) EventConsumer() *eventhandler.Consumer               { return c.eventConsumer }
 func (c *Container) AttackChainHandler() *httphandler.AttackChainHandler { return c.attackChainHandler }
 func (c *Container) OutboxRelay() *usecase.OutboxRelay                   { return c.outboxRelay }

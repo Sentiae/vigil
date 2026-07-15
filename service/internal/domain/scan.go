@@ -67,7 +67,15 @@ type Scan struct {
 	Priority      string     `json:"priority,omitempty"`
 	FindingsNew   int        `json:"findings_new"`
 	FindingsTotal int        `json:"findings_total"`
-	DurationMs    int64      `json:"duration_ms"`
+	// Per-severity counts of the findings THIS scan produced (independent of
+	// the tenant-global dedup pool). Set by the worker before completion and
+	// persisted on the scan row; served by GetSecurityBaseline.
+	FindingsCritical int   `json:"findings_critical"`
+	FindingsHigh     int   `json:"findings_high"`
+	FindingsMedium   int   `json:"findings_medium"`
+	FindingsLow      int   `json:"findings_low"`
+	FindingsInfo     int   `json:"findings_info"`
+	DurationMs       int64 `json:"duration_ms"`
 	Error         string     `json:"error,omitempty"`
 	TriggeredBy   string     `json:"triggered_by"`
 	StartedAt     *time.Time `json:"started_at,omitempty"`
@@ -109,6 +117,16 @@ func (s *Scan) MarkCompleted(findingsNew, findingsTotal int) {
 		s.DurationMs = now.Sub(*s.StartedAt).Milliseconds()
 	}
 	s.UpdatedAt = now
+}
+
+// SetSeverityCounts records the per-severity counts of the findings this scan
+// produced. Unknown severities are ignored.
+func (s *Scan) SetSeverityCounts(counts map[Severity]int) {
+	s.FindingsCritical = counts[SeverityCritical]
+	s.FindingsHigh = counts[SeverityHigh]
+	s.FindingsMedium = counts[SeverityMedium]
+	s.FindingsLow = counts[SeverityLow]
+	s.FindingsInfo = counts[SeverityInfo]
 }
 
 // MarkFailed transitions the scan to failed state.

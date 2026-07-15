@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/sentiae/vigil/service/internal/domain"
@@ -55,6 +56,7 @@ func (r *Registry) RunScan(ctx context.Context, scanType domain.ScanType, target
 	}
 
 	var allFindings []*domain.Finding
+	var failures []string
 	for _, s := range scanners {
 		if !s.Supports(target) {
 			logger.Debug(ctx, "Scanner does not support target, skipping", "scanner", s.Name())
@@ -65,10 +67,17 @@ func (r *Registry) RunScan(ctx context.Context, scanType domain.ScanType, target
 		findings, err := s.Scan(ctx, target)
 		if err != nil {
 			logger.Error(ctx, "Scanner failed", "scanner", s.Name(), "error", err)
+			failures = append(failures, fmt.Sprintf("%s: %v", s.Name(), err))
 			continue
 		}
 		logger.Info(ctx, "Scanner completed", "scanner", s.Name(), "findings", len(findings))
 		allFindings = append(allFindings, findings...)
+	}
+
+	// Fail closed: if any supported scanner errored, surface it so the scan is
+	// marked failed rather than silently reporting partial/zero coverage as clean.
+	if len(failures) > 0 {
+		return allFindings, fmt.Errorf("scanner(s) failed: %s", strings.Join(failures, "; "))
 	}
 
 	return allFindings, nil

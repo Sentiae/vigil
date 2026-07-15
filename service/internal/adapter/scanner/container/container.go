@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sentiae/vigil/service/internal/adapter/scanner"
@@ -31,14 +32,23 @@ func (s *Scanner) Scan(ctx context.Context, target portscanner.ScanTarget) ([]*d
 		scanTarget = fmt.Sprintf("dir:%s", target.LocalPath)
 	}
 
+	// Track whether at least one tool ran successfully so we can fail closed
+	// when no scanner produced a result (missing binaries or every tool errored).
+	toolRan := false
+	toolErrs := []string{}
+
 	// Grype for vulnerability matching on container images
 	if scanner.CommandExists("grype") {
 		findings, err := s.runGrype(ctx, scanTarget)
 		if err != nil {
 			logger.Warn(ctx, "Grype container scan failed", "error", err)
+			toolErrs = append(toolErrs, fmt.Sprintf("grype: %v", err))
 		} else {
+			toolRan = true
 			allFindings = append(allFindings, findings...)
 		}
+	} else {
+		toolErrs = append(toolErrs, "grype missing")
 	}
 
 	// Trivy for container-specific checks (secrets in layers, misconfigs)
@@ -46,9 +56,19 @@ func (s *Scanner) Scan(ctx context.Context, target portscanner.ScanTarget) ([]*d
 		findings, err := s.runTrivy(ctx, scanTarget)
 		if err != nil {
 			logger.Warn(ctx, "Trivy container scan failed", "error", err)
+			toolErrs = append(toolErrs, fmt.Sprintf("trivy: %v", err))
 		} else {
+			toolRan = true
 			allFindings = append(allFindings, findings...)
 		}
+	} else {
+		toolErrs = append(toolErrs, "trivy missing")
+	}
+
+	// Fail closed: if no tool ran successfully, the scan has no coverage —
+	// return an error so the scan is marked failed rather than silently clean.
+	if !toolRan {
+		return nil, fmt.Errorf("container scan produced no result: %s", strings.Join(toolErrs, "; "))
 	}
 
 	return allFindings, nil
@@ -58,6 +78,12 @@ func (s *Scanner) runGrype(ctx context.Context, target string) ([]*domain.Findin
 	result, err := scanner.RunSubprocess(ctx, "grype", target, "-o", "json", "--quiet")
 	if err != nil {
 		return nil, fmt.Errorf("grype: %w", err)
+	}
+	// grype exits non-zero ONLY on error (image pull failure, etc.) — we set no
+	// --fail-on, so a non-zero code is never "findings". Surface it so the scan
+	// fails closed instead of being counted as a clean zero-finding result.
+	if result.ExitCode != 0 {
+		return nil, fmt.Errorf("grype exit %d: %s", result.ExitCode, strings.TrimSpace(string(result.Stderr)))
 	}
 	if len(result.Stdout) == 0 {
 		return nil, nil
@@ -83,6 +109,12 @@ func (s *Scanner) runTrivy(ctx context.Context, target string) ([]*domain.Findin
 	)
 	if err != nil {
 		return nil, fmt.Errorf("trivy: %w", err)
+	}
+	// trivy exits non-zero ONLY on error (image pull failure, etc.) — we set no
+	// --exit-code, so a non-zero code is never "findings". Surface it so the scan
+	// fails closed instead of being counted as a clean zero-finding result.
+	if result.ExitCode != 0 {
+		return nil, fmt.Errorf("trivy exit %d: %s", result.ExitCode, strings.TrimSpace(string(result.Stderr)))
 	}
 	if len(result.Stdout) == 0 {
 		return nil, nil

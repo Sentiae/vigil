@@ -53,3 +53,6 @@ telemetry:
   service_name: "vigil-service"
   otlp_endpoint: "localhost:4317"
   metric_port: "9092"
+
+internal:
+  service_token: ""

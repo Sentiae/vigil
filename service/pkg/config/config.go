@@ -18,6 +18,15 @@ type Config struct {
 	Kafka      KafkaConfig      `mapstructure:"kafka"`
 	S3         S3Config         `mapstructure:"s3"`
 	Telemetry  TelemetryConfig  `mapstructure:"telemetry" validate:"required"`
+	Internal   InternalConfig   `mapstructure:"internal"`
+}
+
+// InternalConfig holds the shared platform-wide internal service token used for
+// service-to-service (x-api-key) auth. Empty in dev/homelab trusts in-cluster
+// traffic; a set value is enforced (constant-time compare). Same
+// APP_INTERNAL_SERVICE_TOKEN key catalog/codegen validate.
+type InternalConfig struct {
+	ServiceToken string `mapstructure:"service_token"`
 }
 
 type ServerConfig struct {
@@ -128,6 +137,9 @@ func Load() (*Config, error) {
 	// gRPC port binding
 	_ = v.BindEnv("server.grpc_port", "APP_GRPC_PORT")
 	v.SetDefault("server.grpc_port", 50051)
+
+	// Shared internal service-token (x-api-key) binding
+	_ = v.BindEnv("internal.service_token", "APP_INTERNAL_SERVICE_TOKEN")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {

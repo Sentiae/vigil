@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -12,9 +13,18 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
+	pkinterceptor "github.com/sentiae/platform-kit/interceptor"
+
+	codeanalysisv1 "github.com/sentiae/vigil/service/gen/proto/code_analysis/v1"
 	customHTTP "github.com/sentiae/vigil/service/internal/adapter/handler/http"
+	"github.com/sentiae/vigil/service/internal/infrastructure/migrate"
 	customMiddleware "github.com/sentiae/vigil/service/internal/middleware"
 	"github.com/sentiae/vigil/service/pkg/config"
 	"github.com/sentiae/vigil/service/pkg/database"
@@ -34,6 +44,8 @@ type Server struct {
 	db         *pgxpool.Pool
 	container  *Container
 	httpServer *http.Server
+	grpcServer *grpc.Server
+	grpcAddr   string
 	version    string
 	cancelBg   context.CancelFunc
 }
@@ -49,6 +61,13 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 	}
 	s.db = pool
 	logger.Info(ctx, "PostgreSQL connected successfully")
+
+	// 1b. Apply embedded schema migrations before anything serves, so a fresh
+	// deploy reproduces the Postgres schema with zero manual steps. Failure here
+	// fails boot (main.go logs fatal).
+	if err := migrate.Apply(ctx, pool); err != nil {
+		return nil, fmt.Errorf("schema migration failed: %w", err)
+	}
 
 	// 2. Setup DI container
 	containerCfg := ContainerConfig{
@@ -85,6 +104,40 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
+
+	// gRPC server for the P13 CodeAnalysisService seam. Plaintext (in-mesh
+	// docker network; callers dial insecure) with recovery + OTel + logging
+	// interceptors — matching vigil's existing observability stack. Runs
+	// alongside the Chi HTTP server, which is left fully intact.
+	//
+	// Caller auth (CLAUDE.md §23): the shared platform internal service-token
+	// via x-api-key, constant-time compared against APP_INTERNAL_SERVICE_TOKEN
+	// (empty → trust in-cluster; mirrors catalog-service). vigil's plain
+	// grpc.NewServer can't use platform-kit's full NewChain (it pulls the
+	// SVID/tenant/mesh stack vigil isn't wired for), so only the standalone
+	// UnaryAuth interceptor is added, after the local recovery + logging.
+	// TokenValidator is nil (this M2M seam takes tenant_id in the request, not a
+	// user JWT); RequirePeerSVID stays off since no SVID interceptor populates a
+	// peer identity here.
+	s.grpcServer = grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ChainUnaryInterceptor(
+			recoveryUnaryInterceptor(),
+			loggingUnaryInterceptor(),
+			pkinterceptor.UnaryAuth(pkinterceptor.AuthConfig{
+				APIKeyValidator: serviceTokenValidator{expected: cfg.Internal.ServiceToken},
+				// AcceptAPIKey hardcoded true (catalog reads pkconfig.AcceptAPIKey(),
+				// default true): the x-api-key path must stay enabled, and vigil's
+				// plain non-mesh server is not part of the shared-token retire
+				// rollout — reading it via platform-kit/config would drag Vault/SPIFFE
+				// transitive deps in for one flag.
+				AcceptAPIKey: true,
+			}),
+		),
+	)
+	codeanalysisv1.RegisterCodeAnalysisServiceServer(s.grpcServer, s.container.CodeAnalysisHandler())
+	reflection.Register(s.grpcServer) // grpcurl/ops, matches sibling services (§32)
+	s.grpcAddr = fmt.Sprintf(":%d", cfg.Server.GRPCPort)
 
 	// 4. Start background services
 	bgCtx, bgCancel := context.WithCancel(context.Background())
@@ -169,7 +222,7 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 	return s, nil
 }
 
-// Start launches the HTTP server in a background goroutine.
+// Start launches the HTTP + gRPC servers in background goroutines.
 func (s *Server) Start(ctx context.Context, serverErr chan<- error) {
 	go func() {
 		logger.Info(ctx, "HTTP server starting", "addr", s.httpServer.Addr)
@@ -177,6 +230,45 @@ func (s *Server) Start(ctx context.Context, serverErr chan<- error) {
 			serverErr <- fmt.Errorf("HTTP server failed: %w", err)
 		}
 	}()
+
+	go func() {
+		logger.Info(ctx, "gRPC server starting", "addr", s.grpcAddr)
+		lis, err := net.Listen("tcp", s.grpcAddr)
+		if err != nil {
+			serverErr <- fmt.Errorf("gRPC listen failed: %w", err)
+			return
+		}
+		if err := s.grpcServer.Serve(lis); err != nil {
+			serverErr <- fmt.Errorf("gRPC server failed: %w", err)
+		}
+	}()
+}
+
+// recoveryUnaryInterceptor converts a panicking handler into codes.Internal.
+func recoveryUnaryInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error(ctx, "gRPC handler panic", "method", info.FullMethod, "recover", r)
+				err = status.Error(codes.Internal, "internal error")
+			}
+		}()
+		return handler(ctx, req)
+	}
+}
+
+// loggingUnaryInterceptor logs each RPC's method, duration, and status code.
+func loggingUnaryInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		start := time.Now()
+		resp, err := handler(ctx, req)
+		logger.Info(ctx, "gRPC request",
+			"method", info.FullMethod,
+			"duration_ms", time.Since(start).Milliseconds(),
+			"code", status.Code(err).String(),
+		)
+		return resp, err
+	}
 }
 
 // Shutdown gracefully stops all servers with a 30-second timeout.
@@ -186,6 +278,10 @@ func (s *Server) Shutdown(ctx context.Context) {
 	defer cancel()
 	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
 		logger.Error(ctx, "HTTP server forced to shutdown", "error", err)
+	}
+	if s.grpcServer != nil {
+		logger.Info(ctx, "Stopping gRPC server")
+		s.grpcServer.GracefulStop()
 	}
 	logger.Info(ctx, "Server exited")
 }

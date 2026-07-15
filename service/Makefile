@@ -12,7 +12,7 @@ DOCKER_BUILD_CONTEXT := ..
 DOCKER_BUILD_FILE    := Dockerfile
 
 # Include shared platform-kit targets
-PLATFORM_KIT_DIR := $(shell cd .. && pwd)/platform-kit
+PLATFORM_KIT_DIR := $(shell cd ../.. && pwd)/platform-kit
 include $(PLATFORM_KIT_DIR)/Makefile.include
 
 # =============================================================================

@@ -66,6 +66,7 @@ require (
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -94,7 +95,8 @@ require (
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/sentiae/platform-kit v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.11.1
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0
 	google.golang.org/protobuf v1.36.11
 )
 
-replace github.com/sentiae/platform-kit => ../platform-kit
+replace github.com/sentiae/platform-kit => ../../platform-kit
