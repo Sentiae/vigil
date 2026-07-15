@@ -136,6 +136,8 @@ message RequestScanRequest {
   string commit_sha = 5;
   string priority = 6;    // default | critical
   string triggered_by = 7;
+  // optional; registry Basic-auth password so the worker can pull a private image target
+  string registry_pull_token = 8;
 }
 
 // ScanHandle is returned by RequestScan so the caller can poll for

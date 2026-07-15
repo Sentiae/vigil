@@ -24,6 +24,10 @@ type ScanTaskPayload struct {
 	TenantID string `json:"tenant_id"`
 	Target   string `json:"target"`
 	Branch   string `json:"branch"`
+	// RegistryPullToken is a short-lived registry Basic-auth password for
+	// pulling a private image target. Present only in this in-memory task
+	// payload — never persisted.
+	RegistryPullToken string `json:"registry_pull_token,omitempty"`
 }
 
 // TaskHandler handles asynq scan tasks by running the appropriate scanners.
@@ -85,10 +89,13 @@ func (h *TaskHandler) HandleScanTask(scanType domain.ScanType) asynq.HandlerFunc
 				URI:  payload.Target,
 			}
 		} else if isImageTarget(scanType) {
-			// Container scans target an OCI image reference — no cloning needed
+			// Container scans target an OCI image reference — no cloning needed.
+			// RegistryToken (when present) lets the container scanner pull a
+			// private image from our registry via Basic-auth.
 			target = portscanner.ScanTarget{
-				Type: "image",
-				URI:  payload.Target,
+				Type:          "image",
+				URI:           payload.Target,
+				RegistryToken: payload.RegistryPullToken,
 			}
 		} else {
 			// Code scans need a cloned repository

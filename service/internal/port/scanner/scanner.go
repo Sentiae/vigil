@@ -14,6 +14,10 @@ type ScanTarget struct {
 	CommitSHA string `json:"commit_sha"`
 	DiffOnly  bool   `json:"diff_only"`  // PR-scoped scan
 	LocalPath string `json:"local_path"` // cloned repo path on worker
+	// RegistryToken is a short-lived registry Basic-auth password (username is
+	// arbitrary) used to pull a private image target. Empty for public images
+	// and non-image targets. Never persisted; carried in-memory only.
+	RegistryToken string `json:"-"`
 }
 
 // Scanner is the interface that all analysis modules implement.

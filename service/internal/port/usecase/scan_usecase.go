@@ -16,6 +16,10 @@ type TriggerScanInput struct {
 	Branch    string          `json:"branch,omitempty"`
 	Priority  string          `json:"priority,omitempty"`
 	TriggeredBy string        `json:"triggered_by"`
+	// RegistryPullToken is a short-lived registry Basic-auth password used by
+	// the worker to pull a private image target. It is never persisted — it
+	// travels only in the in-memory asynq task payload.
+	RegistryPullToken string  `json:"-"`
 }
 
 // ScanUseCase defines the business logic interface for scans.

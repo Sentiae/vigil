@@ -39,7 +39,7 @@ func (s *Scanner) Scan(ctx context.Context, target portscanner.ScanTarget) ([]*d
 
 	// Grype for vulnerability matching on container images
 	if scanner.CommandExists("grype") {
-		findings, err := s.runGrype(ctx, scanTarget)
+		findings, err := s.runGrype(ctx, scanTarget, target.RegistryToken)
 		if err != nil {
 			logger.Warn(ctx, "Grype container scan failed", "error", err)
 			toolErrs = append(toolErrs, fmt.Sprintf("grype: %v", err))
@@ -53,7 +53,7 @@ func (s *Scanner) Scan(ctx context.Context, target portscanner.ScanTarget) ([]*d
 
 	// Trivy for container-specific checks (secrets in layers, misconfigs)
 	if scanner.CommandExists("trivy") {
-		findings, err := s.runTrivy(ctx, scanTarget)
+		findings, err := s.runTrivy(ctx, scanTarget, target.RegistryToken)
 		if err != nil {
 			logger.Warn(ctx, "Trivy container scan failed", "error", err)
 			toolErrs = append(toolErrs, fmt.Sprintf("trivy: %v", err))
@@ -74,8 +74,24 @@ func (s *Scanner) Scan(ctx context.Context, target portscanner.ScanTarget) ([]*d
 	return allFindings, nil
 }
 
-func (s *Scanner) runGrype(ctx context.Context, target string) ([]*domain.Finding, error) {
-	result, err := scanner.RunSubprocess(ctx, "grype", target, "-o", "json", "--quiet")
+func (s *Scanner) runGrype(ctx context.Context, target, registryToken string) ([]*domain.Finding, error) {
+	args := []string{target, "-o", "json", "--quiet"}
+	var result *scanner.SubprocessResult
+	var err error
+	if registryToken != "" {
+		// Private image pull: token is the Basic-auth password (username
+		// arbitrary), over plain-HTTP in-cluster registry. Creds go via env,
+		// never argv, so they never reach logs.
+		env := []string{
+			"GRYPE_REGISTRY_AUTH_USERNAME=x",
+			"GRYPE_REGISTRY_AUTH_PASSWORD=" + registryToken,
+			"GRYPE_REGISTRY_INSECURE_USE_HTTP=true",
+			"GRYPE_REGISTRY_INSECURE_SKIP_TLS_VERIFY=true",
+		}
+		result, err = scanner.RunSubprocessEnv(ctx, env, "grype", args...)
+	} else {
+		result, err = scanner.RunSubprocess(ctx, "grype", args...)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("grype: %w", err)
 	}
@@ -99,14 +115,29 @@ func (s *Scanner) runGrype(ctx context.Context, target string) ([]*domain.Findin
 	return findings, nil
 }
 
-func (s *Scanner) runTrivy(ctx context.Context, target string) ([]*domain.Finding, error) {
-	result, err := scanner.RunSubprocess(ctx,
-		"trivy", "image",
+func (s *Scanner) runTrivy(ctx context.Context, target, registryToken string) ([]*domain.Finding, error) {
+	args := []string{
+		"image",
 		"--scanners", "vuln,secret",
 		"--format", "sarif",
 		"--quiet",
 		target,
-	)
+	}
+	var result *scanner.SubprocessResult
+	var err error
+	if registryToken != "" {
+		// Private image pull: token is the Basic-auth password (username
+		// arbitrary); TRIVY_INSECURE allows the plain-HTTP in-cluster registry.
+		// Creds go via env, never argv, so they never reach logs.
+		env := []string{
+			"TRIVY_USERNAME=x",
+			"TRIVY_PASSWORD=" + registryToken,
+			"TRIVY_INSECURE=true",
+		}
+		result, err = scanner.RunSubprocessEnv(ctx, env, "trivy", args...)
+	} else {
+		result, err = scanner.RunSubprocess(ctx, "trivy", args...)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("trivy: %w", err)
 	}

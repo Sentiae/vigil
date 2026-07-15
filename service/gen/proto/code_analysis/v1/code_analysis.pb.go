@@ -647,16 +647,18 @@ func (x *ComplexityDelta) GetAvgCognitiveDelta() float64 {
 }
 
 type RequestScanRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TenantId      string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
-	ScanType      string                 `protobuf:"bytes,2,opt,name=scan_type,json=scanType,proto3" json:"scan_type,omitempty"` // sast | sca | secret_detection | iac | ...
-	Target        string                 `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
-	Branch        string                 `protobuf:"bytes,4,opt,name=branch,proto3" json:"branch,omitempty"`
-	CommitSha     string                 `protobuf:"bytes,5,opt,name=commit_sha,json=commitSha,proto3" json:"commit_sha,omitempty"`
-	Priority      string                 `protobuf:"bytes,6,opt,name=priority,proto3" json:"priority,omitempty"` // default | critical
-	TriggeredBy   string                 `protobuf:"bytes,7,opt,name=triggered_by,json=triggeredBy,proto3" json:"triggered_by,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	TenantId    string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	ScanType    string                 `protobuf:"bytes,2,opt,name=scan_type,json=scanType,proto3" json:"scan_type,omitempty"` // sast | sca | secret_detection | iac | ...
+	Target      string                 `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	Branch      string                 `protobuf:"bytes,4,opt,name=branch,proto3" json:"branch,omitempty"`
+	CommitSha   string                 `protobuf:"bytes,5,opt,name=commit_sha,json=commitSha,proto3" json:"commit_sha,omitempty"`
+	Priority    string                 `protobuf:"bytes,6,opt,name=priority,proto3" json:"priority,omitempty"` // default | critical
+	TriggeredBy string                 `protobuf:"bytes,7,opt,name=triggered_by,json=triggeredBy,proto3" json:"triggered_by,omitempty"`
+	// optional; registry Basic-auth password so the worker can pull a private image target
+	RegistryPullToken string `protobuf:"bytes,8,opt,name=registry_pull_token,json=registryPullToken,proto3" json:"registry_pull_token,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RequestScanRequest) Reset() {
@@ -734,6 +736,13 @@ func (x *RequestScanRequest) GetPriority() string {
 func (x *RequestScanRequest) GetTriggeredBy() string {
 	if x != nil {
 		return x.TriggeredBy
+	}
+	return ""
+}
+
+func (x *RequestScanRequest) GetRegistryPullToken() string {
+	if x != nil {
+		return x.RegistryPullToken
 	}
 	return ""
 }
@@ -1265,7 +1274,7 @@ const file_proto_code_analysis_v1_code_analysis_proto_rawDesc = "" +
 	"\x14findings_total_delta\x18\t \x01(\x05R\x12findingsTotalDelta\x120\n" +
 	"\x14avg_cyclomatic_delta\x18\n" +
 	" \x01(\x01R\x12avgCyclomaticDelta\x12.\n" +
-	"\x13avg_cognitive_delta\x18\v \x01(\x01R\x11avgCognitiveDelta\"\xdc\x01\n" +
+	"\x13avg_cognitive_delta\x18\v \x01(\x01R\x11avgCognitiveDelta\"\x8c\x02\n" +
 	"\x12RequestScanRequest\x12\x1b\n" +
 	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x1b\n" +
 	"\tscan_type\x18\x02 \x01(\tR\bscanType\x12\x16\n" +
@@ -1274,7 +1283,8 @@ const file_proto_code_analysis_v1_code_analysis_proto_rawDesc = "" +
 	"\n" +
 	"commit_sha\x18\x05 \x01(\tR\tcommitSha\x12\x1a\n" +
 	"\bpriority\x18\x06 \x01(\tR\bpriority\x12!\n" +
-	"\ftriggered_by\x18\a \x01(\tR\vtriggeredBy\"v\n" +
+	"\ftriggered_by\x18\a \x01(\tR\vtriggeredBy\x12.\n" +
+	"\x13registry_pull_token\x18\b \x01(\tR\x11registryPullToken\"v\n" +
 	"\n" +
 	"ScanHandle\x12\x17\n" +
 	"\ascan_id\x18\x01 \x01(\tR\x06scanId\x12\x16\n" +
@@ -1325,7 +1335,7 @@ const file_proto_code_analysis_v1_code_analysis_proto_rawDesc = "" +
 	"\x12GetComplexityDelta\x12+.code_analysis.v1.GetComplexityDeltaRequest\x1a!.code_analysis.v1.ComplexityDelta\x12Q\n" +
 	"\vRequestScan\x12$.code_analysis.v1.RequestScanRequest\x1a\x1c.code_analysis.v1.ScanHandle\x12W\n" +
 	"\rGetScanStatus\x12&.code_analysis.v1.GetScanStatusRequest\x1a\x1e.code_analysis.v1.SecurityScan\x12]\n" +
-	"\fListFindings\x12%.code_analysis.v1.ListFindingsRequest\x1a&.code_analysis.v1.ListFindingsResponseBNZLgithub.com/sentiae/vigil/service/gen/code_analysis/v1;codeanalysisv1b\x06proto3"
+	"\fListFindings\x12%.code_analysis.v1.ListFindingsRequest\x1a&.code_analysis.v1.ListFindingsResponseBNZLgithub.com/sentiae/code-analysis-service/gen/code_analysis/v1;codeanalysisv1b\x06proto3"
 
 var (
 	file_proto_code_analysis_v1_code_analysis_proto_rawDescOnce sync.Once

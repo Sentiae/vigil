@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -20,9 +21,19 @@ type SubprocessResult struct {
 
 // RunSubprocess executes an external command with a timeout and returns the output.
 func RunSubprocess(ctx context.Context, name string, args ...string) (*SubprocessResult, error) {
+	return RunSubprocessEnv(ctx, nil, name, args...)
+}
+
+// RunSubprocessEnv is RunSubprocess with extra environment variables appended to
+// the inherited environment. Used to pass registry credentials (e.g. a pull
+// token) to a scanner via env — keeping the secret out of argv and out of logs.
+func RunSubprocessEnv(ctx context.Context, extraEnv []string, name string, args ...string) (*SubprocessResult, error) {
 	start := time.Now()
 
 	cmd := exec.CommandContext(ctx, name, args...)
+	if len(extraEnv) > 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

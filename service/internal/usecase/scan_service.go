@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -14,6 +15,18 @@ import (
 	"github.com/sentiae/vigil/service/pkg/events"
 	"github.com/sentiae/vigil/service/pkg/logger"
 )
+
+// scanTaskPayload is the JSON shape enqueued for the scanner worker. It mirrors
+// scanner.ScanTaskPayload (the worker-side decode target); kept local so the
+// usecase layer does not import the adapter. RegistryPullToken is a short-lived
+// secret carried only in this in-memory task payload — never persisted.
+type scanTaskPayload struct {
+	ScanID            string `json:"scan_id"`
+	TenantID          string `json:"tenant_id"`
+	Target            string `json:"target"`
+	Branch            string `json:"branch"`
+	RegistryPullToken string `json:"registry_pull_token,omitempty"`
+}
 
 type scanService struct {
 	scanRepo  repository.ScanRepository
@@ -60,15 +73,25 @@ func (s *scanService) TriggerScan(ctx context.Context, input portuc.TriggerScanI
 	// Enqueue asynq task for the worker
 	if s.asynqClient != nil {
 		taskType := fmt.Sprintf("scan:%s", scan.Type)
-		payload := fmt.Sprintf(`{"scan_id":"%s","tenant_id":"%s","target":"%s","branch":"%s"}`,
-			scan.ID, scan.TenantID, scan.Target, scan.Branch)
+		// Marshal (not string-interpolate) so a secret registry pull token is
+		// escaped correctly and never breaks the JSON payload.
+		payload, err := json.Marshal(scanTaskPayload{
+			ScanID:            scan.ID.String(),
+			TenantID:          scan.TenantID.String(),
+			Target:            scan.Target,
+			Branch:            scan.Branch,
+			RegistryPullToken: input.RegistryPullToken,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("marshal scan task payload: %w", err)
+		}
 
 		queue := "default"
 		if scan.Priority == "critical" {
 			queue = "critical"
 		}
 
-		task := asynq.NewTask(taskType, []byte(payload))
+		task := asynq.NewTask(taskType, payload)
 		if _, err := s.asynqClient.Enqueue(task, asynq.Queue(queue)); err != nil {
 			// Fail closed: a scan that never enqueues would sit queued forever and a
 			// caller (e.g. the delivery gate) would poll to timeout. Mark it failed

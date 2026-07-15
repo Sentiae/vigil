@@ -60,6 +60,9 @@ func (h *CodeAnalysisHandler) RequestScan(ctx context.Context, req *codeanalysis
 		Branch:      req.GetBranch(),
 		Priority:    req.GetPriority(),
 		TriggeredBy: req.GetTriggeredBy(),
+		// Short-lived registry pull token; carried through to the async task
+		// payload only, never persisted.
+		RegistryPullToken: req.GetRegistryPullToken(),
 	})
 	if err != nil {
 		return nil, toGRPC(err)
