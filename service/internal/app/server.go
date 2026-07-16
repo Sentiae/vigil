@@ -13,14 +13,18 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/sentiae/platform-kit/authjwt"
+	pkconfig "github.com/sentiae/platform-kit/config"
+	"github.com/sentiae/platform-kit/grpcserver"
 	pkinterceptor "github.com/sentiae/platform-kit/interceptor"
+	"github.com/sentiae/platform-kit/spiffe"
 
 	codeanalysisv1 "github.com/sentiae/vigil/service/gen/proto/code_analysis/v1"
 	customHTTP "github.com/sentiae/vigil/service/internal/adapter/handler/http"
@@ -44,7 +48,8 @@ type Server struct {
 	db         *pgxpool.Pool
 	container  *Container
 	httpServer *http.Server
-	grpcServer *grpc.Server
+	grpcServer *grpcserver.Builder
+	src        *workloadapi.X509Source
 	grpcAddr   string
 	version    string
 	cancelBg   context.CancelFunc
@@ -94,8 +99,14 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 	}
 	s.container = NewContainer(containerCfg)
 
+	// 2b. Build the inbound user-JWT validator BEFORE the router.
+	jwtValidator, err := newJWTValidator(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// 3. Build HTTP router
-	router := s.buildRouter(cfg)
+	router := s.buildRouter(cfg, jwtValidator)
 
 	s.httpServer = &http.Server{
 		Addr:         ":" + cfg.Server.Port,
@@ -105,38 +116,54 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
-	// gRPC server for the P13 CodeAnalysisService seam. Plaintext (in-mesh
-	// docker network; callers dial insecure) with recovery + OTel + logging
-	// interceptors — matching vigil's existing observability stack. Runs
-	// alongside the Chi HTTP server, which is left fully intact.
+	// gRPC server for the P13 CodeAnalysisService seam, on the zero-trust mesh
+	// via platform-kit's dual-mode builder (matching catalog-service). At
+	// APP_GRPC_MTLS_MODE=permissive one listener serves BOTH transports through
+	// cmux: bff-service reaches it over SPIFFE mTLS (the D-155 gate-policy
+	// query), while delivery-service's plaintext + x-api-key client — the live
+	// SEC-04 security gate — keeps working unchanged on the same port. A SPIRE
+	// hiccup degrades to plaintext-only rather than wedge the service.
+	// Runs alongside the Chi HTTP server, which is left fully intact.
 	//
 	// Caller auth (CLAUDE.md §23): the shared platform internal service-token
 	// via x-api-key, constant-time compared against APP_INTERNAL_SERVICE_TOKEN
-	// (empty → trust in-cluster; mirrors catalog-service). vigil's plain
-	// grpc.NewServer can't use platform-kit's full NewChain (it pulls the
-	// SVID/tenant/mesh stack vigil isn't wired for), so only the standalone
-	// UnaryAuth interceptor is added, after the local recovery + logging.
-	// TokenValidator is nil (this M2M seam takes tenant_id in the request, not a
-	// user JWT); RequirePeerSVID stays off since no SVID interceptor populates a
-	// peer identity here.
-	s.grpcServer = grpc.NewServer(
+	// (empty → trust in-cluster; mirrors catalog-service). The standalone
+	// UnaryAuth interceptor runs after the local recovery + logging, and the
+	// builder prepends the SVID interceptors, so a peer SVID authenticates the
+	// mTLS caller while x-api-key authenticates the plaintext one through this
+	// same config. TokenValidator is nil (this M2M seam takes tenant_id in the
+	// request, not a user JWT). AcceptAPIKey stays true and RequirePeerSVID
+	// stays off: retiring the shared token is a later mesh-wide rollout step.
+	var src *workloadapi.X509Source
+	if pkconfig.MTLSMode() != pkconfig.MTLSModeOff {
+		s, srcErr := spiffe.NewSource(ctx)
+		if srcErr != nil {
+			logger.Warn(ctx, "SPIFFE source unavailable, degrading to plaintext", "err", srcErr)
+		} else {
+			src = s
+		}
+	}
+	s.src = src
+
+	s.grpcServer = grpcserver.New(grpcserver.Config{
+		Mode:        pkconfig.MTLSMode(),
+		Source:      src,
+		ServiceName: "vigil",
+	},
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			recoveryUnaryInterceptor(),
 			loggingUnaryInterceptor(),
 			pkinterceptor.UnaryAuth(pkinterceptor.AuthConfig{
 				APIKeyValidator: serviceTokenValidator{expected: cfg.Internal.ServiceToken},
-				// AcceptAPIKey hardcoded true (catalog reads pkconfig.AcceptAPIKey(),
-				// default true): the x-api-key path must stay enabled, and vigil's
-				// plain non-mesh server is not part of the shared-token retire
-				// rollout — reading it via platform-kit/config would drag Vault/SPIFFE
-				// transitive deps in for one flag.
-				AcceptAPIKey: true,
+				AcceptAPIKey:    true,
 			}),
 		),
 	)
-	codeanalysisv1.RegisterCodeAnalysisServiceServer(s.grpcServer, s.container.CodeAnalysisHandler())
-	reflection.Register(s.grpcServer) // grpcurl/ops, matches sibling services (§32)
+	// Registrar fans out to every underlying transport; the builder's Serve
+	// registers reflection (grpcurl/ops) + health on each, so neither is
+	// registered here.
+	codeanalysisv1.RegisterCodeAnalysisServiceServer(s.grpcServer.Registrar(), s.container.CodeAnalysisHandler())
 	s.grpcAddr = fmt.Sprintf(":%d", cfg.Server.GRPCPort)
 
 	// 4. Start background services
@@ -283,6 +310,9 @@ func (s *Server) Shutdown(ctx context.Context) {
 		logger.Info(ctx, "Stopping gRPC server")
 		s.grpcServer.GracefulStop()
 	}
+	if s.src != nil {
+		_ = s.src.Close()
+	}
 	logger.Info(ctx, "Server exited")
 }
 
@@ -299,8 +329,34 @@ func (s *Server) Close() {
 	}
 }
 
+// newJWTValidator builds the validator the HTTP surface authenticates with.
+//
+// vigil's HTTP routes scope every read/write by the context tenant, so a
+// missing validator used to mean "trust X-Tenant-ID / ?organization_id=" — the
+// caller picked its own tenant over per-tenant findings and the D-155 deploy
+// gate. There is no degraded mode any more: an empty JWKS URL or a validator
+// that won't build fails boot (D-073's fail-boot posture; foundry's rule that a
+// broken validator must never fall open). A misconfigured deployment refuses to
+// start rather than serve spoofable identity. There is deliberately no dev
+// escape hatch — security.jwks_url defaults to the in-cluster identity endpoint,
+// so dev is configured by default and tests inject their own validator.
+func newJWTValidator(cfg *config.Config) (*authjwt.Validator, error) {
+	if cfg.Security.JWKSURL == "" {
+		return nil, fmt.Errorf("security.jwks_url is empty: refusing to boot without user-JWT validation (set APP_AUTH_JWKS_URL)")
+	}
+	v, err := authjwt.New(authjwt.Config{
+		JWKSURL: cfg.Security.JWKSURL,
+		Issuer:  cfg.Security.JWTIssuer,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build JWKS validator: %w", err)
+	}
+	return v, nil
+}
+
 // buildRouter creates and configures the Chi HTTP router with all routes.
-func (s *Server) buildRouter(cfg *config.Config) *chi.Mux {
+func (s *Server) buildRouter(cfg *config.Config, jwtValidator *authjwt.Validator) *chi.Mux {
+	authMiddleware := customMiddleware.NewAuthMiddleware(jwtValidator)
 	router := chi.NewRouter()
 
 	// Global middleware
@@ -336,7 +392,7 @@ func (s *Server) buildRouter(cfg *config.Config) *chi.Mux {
 	attackChainHandler := s.container.AttackChainHandler()
 
 	router.Route("/api/v1/security", func(r chi.Router) {
-		r.Use(customMiddleware.AuthMiddleware)
+		r.Use(authMiddleware)
 
 		// Findings
 		r.Route("/findings", func(r chi.Router) {
@@ -387,7 +443,7 @@ func (s *Server) buildRouter(cfg *config.Config) *chi.Mux {
 	// §11.2 — Code intelligence (embeddings search + entry points).
 	if ci := s.container.CodeIntelligenceHandler(); ci != nil {
 		router.Route("/api/v1/code", func(r chi.Router) {
-			r.Use(customMiddleware.AuthMiddleware)
+			r.Use(authMiddleware)
 			r.Get("/embeddings/search", ci.HandleEmbeddingSearch)
 			r.Get("/entry-points", ci.HandleListEntryPoints)
 			r.Post("/entry-points/detect", ci.HandleDetectEntryPoints)

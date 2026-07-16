@@ -19,6 +19,21 @@ type Config struct {
 	S3         S3Config         `mapstructure:"s3"`
 	Telemetry  TelemetryConfig  `mapstructure:"telemetry" validate:"required"`
 	Internal   InternalConfig   `mapstructure:"internal"`
+	Security   SecurityConfig   `mapstructure:"security"`
+}
+
+// SecurityConfig holds the inbound user-JWT validation settings. Callers of the
+// HTTP surface present an authorization: Bearer <jwt>; it is validated against
+// identity-service's JWKS so the request's (user, org) identity comes from
+// signed claims rather than from spoofable headers. Matches the field + env
+// names catalog/delivery/permission use (APP_AUTH_JWKS_URL / APP_AUTH_JWT_ISSUER,
+// already shipped in the tracked .env.shared).
+type SecurityConfig struct {
+	// JWKSURL is the identity-service JWKS endpoint used to validate inbound
+	// user JWTs. Empty is a boot failure — see app.NewServer.
+	JWKSURL string `mapstructure:"jwks_url"`
+	// JWTIssuer is the expected iss claim on inbound user JWTs.
+	JWTIssuer string `mapstructure:"jwt_issuer"`
 }
 
 // InternalConfig holds the shared platform-wide internal service token used for
@@ -140,6 +155,14 @@ func Load() (*Config, error) {
 
 	// Shared internal service-token (x-api-key) binding
 	_ = v.BindEnv("internal.service_token", "APP_INTERNAL_SERVICE_TOKEN")
+
+	// Inbound user-JWT validation. Same in-cluster identity JWKS endpoint +
+	// issuer catalog/foundry default to, so a clean deploy validates tokens with
+	// no env set at all; .env.shared supplies the same pair explicitly.
+	_ = v.BindEnv("security.jwks_url", "APP_AUTH_JWKS_URL")
+	_ = v.BindEnv("security.jwt_issuer", "APP_AUTH_JWT_ISSUER")
+	v.SetDefault("security.jwks_url", "http://identity-service:8080/.well-known/jwks.json")
+	v.SetDefault("security.jwt_issuer", "identity-service")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
