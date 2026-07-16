@@ -68,17 +68,19 @@ type Container struct {
 	cfg ContainerConfig
 
 	// Repositories
-	findingRepo   repository.FindingRepository
-	scanRepo      repository.ScanRepository
-	assetRepo     repository.AssetRepository
-	outboxRepo    repository.OutboxRepository
-	analyticsRepo repository.AnalyticsRepository
-	graphRepo     repository.GraphRepository
+	findingRepo    repository.FindingRepository
+	scanRepo       repository.ScanRepository
+	assetRepo      repository.AssetRepository
+	outboxRepo     repository.OutboxRepository
+	analyticsRepo  repository.AnalyticsRepository
+	graphRepo      repository.GraphRepository
+	gatePolicyRepo repository.GatePolicyRepository
 
 	// Use cases
 	findingUC    portuc.FindingUseCase
 	scanUC       portuc.ScanUseCase
 	complianceUC portuc.ComplianceUseCase
+	gateUC       portuc.GatePolicyUseCase
 
 	// Services
 	scoringService *usecase.ScoringService
@@ -196,6 +198,7 @@ func (c *Container) setupRepositories() {
 	c.scanRepo = postgres.NewScanRepository(c.cfg.DB)
 	c.assetRepo = postgres.NewAssetRepository(c.cfg.DB)
 	c.outboxRepo = postgres.NewOutboxRepository(c.cfg.DB)
+	c.gatePolicyRepo = postgres.NewGatePolicyRepository(c.cfg.DB)
 	if c.clickhouseDB != nil {
 		c.analyticsRepo = chrepo.NewAnalyticsRepository(c.clickhouseDB)
 	}
@@ -227,6 +230,7 @@ func (c *Container) setupUseCases() {
 	c.findingUC = usecase.NewFindingService(c.findingRepo, c.analyticsRepo, c.eventPublisher, c.scoringService, c.policyService)
 	c.scanUC = usecase.NewScanService(c.scanRepo, c.eventPublisher, c.asynqClient)
 	c.complianceUC = usecase.NewComplianceService(c.findingRepo, c.assetRepo, c.policyService)
+	c.gateUC = usecase.NewGatePolicyService(c.gatePolicyRepo)
 	logger.Info(context.TODO(), "Use cases initialized")
 }
 
@@ -240,7 +244,7 @@ func (c *Container) setupHandlers() {
 	// P13 CodeAnalysisService gRPC seam — thin adapter over the same scan +
 	// finding use cases the Chi HTTP handlers use, re-expressed over gRPC for
 	// inter-service callers (ops/git/foundry/delivery).
-	c.codeAnalysisHandler = grpchandler.NewCodeAnalysisHandler(c.scanUC, c.findingUC)
+	c.codeAnalysisHandler = grpchandler.NewCodeAnalysisHandler(c.scanUC, c.findingUC, c.gateUC)
 
 	// §11.2 — code intelligence.
 	// The DI wiring here is best-effort: when dependencies are

@@ -25,6 +25,11 @@ const (
 	CodeAnalysisService_RequestScan_FullMethodName            = "/code_analysis.v1.CodeAnalysisService/RequestScan"
 	CodeAnalysisService_GetScanStatus_FullMethodName          = "/code_analysis.v1.CodeAnalysisService/GetScanStatus"
 	CodeAnalysisService_ListFindings_FullMethodName           = "/code_analysis.v1.CodeAnalysisService/ListFindings"
+	CodeAnalysisService_ResolveGatePolicy_FullMethodName      = "/code_analysis.v1.CodeAnalysisService/ResolveGatePolicy"
+	CodeAnalysisService_GetGatePolicy_FullMethodName          = "/code_analysis.v1.CodeAnalysisService/GetGatePolicy"
+	CodeAnalysisService_SetGatePolicy_FullMethodName          = "/code_analysis.v1.CodeAnalysisService/SetGatePolicy"
+	CodeAnalysisService_GetGateUserPref_FullMethodName        = "/code_analysis.v1.CodeAnalysisService/GetGateUserPref"
+	CodeAnalysisService_SetGateUserPref_FullMethodName        = "/code_analysis.v1.CodeAnalysisService/SetGateUserPref"
 )
 
 // CodeAnalysisServiceClient is the client API for CodeAnalysisService service.
@@ -58,6 +63,15 @@ type CodeAnalysisServiceClient interface {
 	// ListFindings is a paginated findings feed for a tenant, filterable
 	// by severity / status / analysis type.
 	ListFindings(ctx context.Context, in *ListFindingsRequest, opts ...grpc.CallOption) (*ListFindingsResponse, error)
+	// Delivery's gate read: the org/user-resolved policy. set=false means neither
+	// layer is configured — the caller applies its platform default.
+	ResolveGatePolicy(ctx context.Context, in *ResolveGatePolicyRequest, opts ...grpc.CallOption) (*ResolveGatePolicyResponse, error)
+	// Settings surface (BFF-facing). Writes use the set_-guard pattern
+	// (identity eve_org.proto:59-73): only fields with set_<field>=true are applied.
+	GetGatePolicy(ctx context.Context, in *GetGatePolicyRequest, opts ...grpc.CallOption) (*GateOrgPolicy, error)
+	SetGatePolicy(ctx context.Context, in *SetGatePolicyRequest, opts ...grpc.CallOption) (*GateOrgPolicy, error)
+	GetGateUserPref(ctx context.Context, in *GetGateUserPrefRequest, opts ...grpc.CallOption) (*GateUserPref, error)
+	SetGateUserPref(ctx context.Context, in *SetGateUserPrefRequest, opts ...grpc.CallOption) (*GateUserPref, error)
 }
 
 type codeAnalysisServiceClient struct {
@@ -128,6 +142,56 @@ func (c *codeAnalysisServiceClient) ListFindings(ctx context.Context, in *ListFi
 	return out, nil
 }
 
+func (c *codeAnalysisServiceClient) ResolveGatePolicy(ctx context.Context, in *ResolveGatePolicyRequest, opts ...grpc.CallOption) (*ResolveGatePolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveGatePolicyResponse)
+	err := c.cc.Invoke(ctx, CodeAnalysisService_ResolveGatePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *codeAnalysisServiceClient) GetGatePolicy(ctx context.Context, in *GetGatePolicyRequest, opts ...grpc.CallOption) (*GateOrgPolicy, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GateOrgPolicy)
+	err := c.cc.Invoke(ctx, CodeAnalysisService_GetGatePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *codeAnalysisServiceClient) SetGatePolicy(ctx context.Context, in *SetGatePolicyRequest, opts ...grpc.CallOption) (*GateOrgPolicy, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GateOrgPolicy)
+	err := c.cc.Invoke(ctx, CodeAnalysisService_SetGatePolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *codeAnalysisServiceClient) GetGateUserPref(ctx context.Context, in *GetGateUserPrefRequest, opts ...grpc.CallOption) (*GateUserPref, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GateUserPref)
+	err := c.cc.Invoke(ctx, CodeAnalysisService_GetGateUserPref_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *codeAnalysisServiceClient) SetGateUserPref(ctx context.Context, in *SetGateUserPrefRequest, opts ...grpc.CallOption) (*GateUserPref, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GateUserPref)
+	err := c.cc.Invoke(ctx, CodeAnalysisService_SetGateUserPref_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CodeAnalysisServiceServer is the server API for CodeAnalysisService service.
 // All implementations must embed UnimplementedCodeAnalysisServiceServer
 // for forward compatibility.
@@ -159,6 +223,15 @@ type CodeAnalysisServiceServer interface {
 	// ListFindings is a paginated findings feed for a tenant, filterable
 	// by severity / status / analysis type.
 	ListFindings(context.Context, *ListFindingsRequest) (*ListFindingsResponse, error)
+	// Delivery's gate read: the org/user-resolved policy. set=false means neither
+	// layer is configured — the caller applies its platform default.
+	ResolveGatePolicy(context.Context, *ResolveGatePolicyRequest) (*ResolveGatePolicyResponse, error)
+	// Settings surface (BFF-facing). Writes use the set_-guard pattern
+	// (identity eve_org.proto:59-73): only fields with set_<field>=true are applied.
+	GetGatePolicy(context.Context, *GetGatePolicyRequest) (*GateOrgPolicy, error)
+	SetGatePolicy(context.Context, *SetGatePolicyRequest) (*GateOrgPolicy, error)
+	GetGateUserPref(context.Context, *GetGateUserPrefRequest) (*GateUserPref, error)
+	SetGateUserPref(context.Context, *SetGateUserPrefRequest) (*GateUserPref, error)
 	mustEmbedUnimplementedCodeAnalysisServiceServer()
 }
 
@@ -186,6 +259,21 @@ func (UnimplementedCodeAnalysisServiceServer) GetScanStatus(context.Context, *Ge
 }
 func (UnimplementedCodeAnalysisServiceServer) ListFindings(context.Context, *ListFindingsRequest) (*ListFindingsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListFindings not implemented")
+}
+func (UnimplementedCodeAnalysisServiceServer) ResolveGatePolicy(context.Context, *ResolveGatePolicyRequest) (*ResolveGatePolicyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveGatePolicy not implemented")
+}
+func (UnimplementedCodeAnalysisServiceServer) GetGatePolicy(context.Context, *GetGatePolicyRequest) (*GateOrgPolicy, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGatePolicy not implemented")
+}
+func (UnimplementedCodeAnalysisServiceServer) SetGatePolicy(context.Context, *SetGatePolicyRequest) (*GateOrgPolicy, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetGatePolicy not implemented")
+}
+func (UnimplementedCodeAnalysisServiceServer) GetGateUserPref(context.Context, *GetGateUserPrefRequest) (*GateUserPref, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGateUserPref not implemented")
+}
+func (UnimplementedCodeAnalysisServiceServer) SetGateUserPref(context.Context, *SetGateUserPrefRequest) (*GateUserPref, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetGateUserPref not implemented")
 }
 func (UnimplementedCodeAnalysisServiceServer) mustEmbedUnimplementedCodeAnalysisServiceServer() {}
 func (UnimplementedCodeAnalysisServiceServer) testEmbeddedByValue()                             {}
@@ -316,6 +404,96 @@ func _CodeAnalysisService_ListFindings_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CodeAnalysisService_ResolveGatePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveGatePolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CodeAnalysisServiceServer).ResolveGatePolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CodeAnalysisService_ResolveGatePolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CodeAnalysisServiceServer).ResolveGatePolicy(ctx, req.(*ResolveGatePolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CodeAnalysisService_GetGatePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGatePolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CodeAnalysisServiceServer).GetGatePolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CodeAnalysisService_GetGatePolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CodeAnalysisServiceServer).GetGatePolicy(ctx, req.(*GetGatePolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CodeAnalysisService_SetGatePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetGatePolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CodeAnalysisServiceServer).SetGatePolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CodeAnalysisService_SetGatePolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CodeAnalysisServiceServer).SetGatePolicy(ctx, req.(*SetGatePolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CodeAnalysisService_GetGateUserPref_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGateUserPrefRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CodeAnalysisServiceServer).GetGateUserPref(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CodeAnalysisService_GetGateUserPref_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CodeAnalysisServiceServer).GetGateUserPref(ctx, req.(*GetGateUserPrefRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CodeAnalysisService_SetGateUserPref_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetGateUserPrefRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CodeAnalysisServiceServer).SetGateUserPref(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CodeAnalysisService_SetGateUserPref_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CodeAnalysisServiceServer).SetGateUserPref(ctx, req.(*SetGateUserPrefRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CodeAnalysisService_ServiceDesc is the grpc.ServiceDesc for CodeAnalysisService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -346,6 +524,26 @@ var CodeAnalysisService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListFindings",
 			Handler:    _CodeAnalysisService_ListFindings_Handler,
+		},
+		{
+			MethodName: "ResolveGatePolicy",
+			Handler:    _CodeAnalysisService_ResolveGatePolicy_Handler,
+		},
+		{
+			MethodName: "GetGatePolicy",
+			Handler:    _CodeAnalysisService_GetGatePolicy_Handler,
+		},
+		{
+			MethodName: "SetGatePolicy",
+			Handler:    _CodeAnalysisService_SetGatePolicy_Handler,
+		},
+		{
+			MethodName: "GetGateUserPref",
+			Handler:    _CodeAnalysisService_GetGateUserPref_Handler,
+		},
+		{
+			MethodName: "SetGateUserPref",
+			Handler:    _CodeAnalysisService_SetGateUserPref_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -35,11 +35,13 @@ type CodeAnalysisHandler struct {
 
 	scanUC    portuc.ScanUseCase
 	findingUC portuc.FindingUseCase
+	gateUC    portuc.GatePolicyUseCase
 }
 
-// NewCodeAnalysisHandler wires the handler over the scan + finding use cases.
-func NewCodeAnalysisHandler(scanUC portuc.ScanUseCase, findingUC portuc.FindingUseCase) *CodeAnalysisHandler {
-	return &CodeAnalysisHandler{scanUC: scanUC, findingUC: findingUC}
+// NewCodeAnalysisHandler wires the handler over the scan + finding + deploy-gate
+// policy use cases.
+func NewCodeAnalysisHandler(scanUC portuc.ScanUseCase, findingUC portuc.FindingUseCase, gateUC portuc.GatePolicyUseCase) *CodeAnalysisHandler {
+	return &CodeAnalysisHandler{scanUC: scanUC, findingUC: findingUC, gateUC: gateUC}
 }
 
 var _ codeanalysisv1.CodeAnalysisServiceServer = (*CodeAnalysisHandler)(nil)
@@ -201,6 +203,164 @@ func (h *CodeAnalysisHandler) GetComplexityDelta(_ context.Context, _ *codeanaly
 	return nil, status.Error(codes.Unimplemented, "GetComplexityDelta is not implemented: no complexity/findings-delta use case exists in vigil")
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Deploy-gate policy (docs/designs/security-gate-policy.md)
+// ─────────────────────────────────────────────────────────────────
+
+// ResolveGatePolicy is delivery's gate read: the org/user-resolved policy.
+// set=false means neither layer is configured and the caller applies its own
+// platform default.
+func (h *CodeAnalysisHandler) ResolveGatePolicy(ctx context.Context, req *codeanalysisv1.ResolveGatePolicyRequest) (*codeanalysisv1.ResolveGatePolicyResponse, error) {
+	tenantID, err := parseTenantID(req.GetTenantId())
+	if err != nil {
+		return nil, err
+	}
+	// An EMPTY user_id is legal here and means "no user layer": delivery's
+	// codegen-consumer path runs pipelines with no requester. It must resolve
+	// over the org/unset layers, never fail closed on a missing user.
+	userID := uuid.Nil
+	if raw := req.GetUserId(); raw != "" {
+		userID, err = parseUserID(raw)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	resolved, err := h.gateUC.Resolve(ctx, tenantID, userID)
+	if err != nil {
+		return nil, toGRPC(err)
+	}
+	return &codeanalysisv1.ResolveGatePolicyResponse{
+		Set:               resolved.Set,
+		Mode:              string(resolved.Mode),
+		SeverityThreshold: string(resolved.SeverityThreshold),
+		Source:            string(resolved.Source),
+	}, nil
+}
+
+// GetGatePolicy returns the org policy row. Absence is a normal state on this
+// surface: it maps to exists=false, not a NotFound status.
+func (h *CodeAnalysisHandler) GetGatePolicy(ctx context.Context, req *codeanalysisv1.GetGatePolicyRequest) (*codeanalysisv1.GateOrgPolicy, error) {
+	tenantID, err := parseTenantID(req.GetTenantId())
+	if err != nil {
+		return nil, err
+	}
+	policy, err := h.gateUC.GetPolicy(ctx, tenantID)
+	if err != nil {
+		if errors.Is(err, domain.ErrGatePolicyNotFound) {
+			return &codeanalysisv1.GateOrgPolicy{}, nil
+		}
+		return nil, toGRPC(err)
+	}
+	return gatePolicyToProto(policy), nil
+}
+
+// SetGatePolicy applies a partial update (set_-guards) or clears the policy.
+func (h *CodeAnalysisHandler) SetGatePolicy(ctx context.Context, req *codeanalysisv1.SetGatePolicyRequest) (*codeanalysisv1.GateOrgPolicy, error) {
+	tenantID, err := parseTenantID(req.GetTenantId())
+	if err != nil {
+		return nil, err
+	}
+	// updated_by is the BFF-forwarded admin identity, stamped for audit.
+	updatedBy, err := parseUserID(req.GetUpdatedBy())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid updated_by")
+	}
+
+	policy, err := h.gateUC.SetPolicy(ctx, portuc.SetGatePolicyInput{
+		TenantID:             tenantID,
+		UpdatedBy:            updatedBy,
+		Clear:                req.GetClear(),
+		SetMode:              req.GetSetMode(),
+		Mode:                 domain.GateMode(req.GetMode()),
+		SetSeverityThreshold: req.GetSetSeverityThreshold(),
+		SeverityThreshold:    domain.Severity(req.GetSeverityThreshold()),
+		SetLocked:            req.GetSetLocked(),
+		Locked:               req.GetLocked(),
+	})
+	if err != nil {
+		return nil, toGRPC(err)
+	}
+	if policy == nil { // cleared
+		return &codeanalysisv1.GateOrgPolicy{}, nil
+	}
+	return gatePolicyToProto(policy), nil
+}
+
+// GetGateUserPref returns one member's preference; absence maps to exists=false.
+func (h *CodeAnalysisHandler) GetGateUserPref(ctx context.Context, req *codeanalysisv1.GetGateUserPrefRequest) (*codeanalysisv1.GateUserPref, error) {
+	tenantID, err := parseTenantID(req.GetTenantId())
+	if err != nil {
+		return nil, err
+	}
+	userID, err := parseUserID(req.GetUserId())
+	if err != nil {
+		return nil, err
+	}
+	pref, err := h.gateUC.GetUserPref(ctx, tenantID, userID)
+	if err != nil {
+		if errors.Is(err, domain.ErrGateUserPrefNotFound) {
+			return &codeanalysisv1.GateUserPref{}, nil
+		}
+		return nil, toGRPC(err)
+	}
+	return gateUserPrefToProto(pref), nil
+}
+
+// SetGateUserPref applies a partial update (set_-guards) or clears the pref.
+func (h *CodeAnalysisHandler) SetGateUserPref(ctx context.Context, req *codeanalysisv1.SetGateUserPrefRequest) (*codeanalysisv1.GateUserPref, error) {
+	tenantID, err := parseTenantID(req.GetTenantId())
+	if err != nil {
+		return nil, err
+	}
+	userID, err := parseUserID(req.GetUserId())
+	if err != nil {
+		return nil, err
+	}
+
+	pref, err := h.gateUC.SetUserPref(ctx, portuc.SetGateUserPrefInput{
+		TenantID:             tenantID,
+		UserID:               userID,
+		Clear:                req.GetClear(),
+		SetMode:              req.GetSetMode(),
+		Mode:                 domain.GateMode(req.GetMode()),
+		SetSeverityThreshold: req.GetSetSeverityThreshold(),
+		SeverityThreshold:    domain.Severity(req.GetSeverityThreshold()),
+	})
+	if err != nil {
+		return nil, toGRPC(err)
+	}
+	if pref == nil { // cleared
+		return &codeanalysisv1.GateUserPref{}, nil
+	}
+	return gateUserPrefToProto(pref), nil
+}
+
+// gatePolicyToProto maps a stored org policy to the wire message.
+func gatePolicyToProto(p *domain.GatePolicy) *codeanalysisv1.GateOrgPolicy {
+	return &codeanalysisv1.GateOrgPolicy{
+		Exists:            true,
+		TenantId:          p.TenantID.String(),
+		Mode:              string(p.Mode),
+		SeverityThreshold: string(p.SeverityThreshold),
+		Locked:            p.Locked,
+		UpdatedBy:         p.UpdatedBy.String(),
+		UpdatedAt:         timestamppb.New(p.UpdatedAt),
+	}
+}
+
+// gateUserPrefToProto maps a stored user preference to the wire message.
+func gateUserPrefToProto(p *domain.GateUserPref) *codeanalysisv1.GateUserPref {
+	return &codeanalysisv1.GateUserPref{
+		Exists:            true,
+		TenantId:          p.TenantID.String(),
+		UserId:            p.UserID.String(),
+		Mode:              string(p.Mode),
+		SeverityThreshold: string(p.SeverityThreshold),
+		UpdatedAt:         timestamppb.New(p.UpdatedAt),
+	}
+}
+
 // latestScanForTarget scans created_at DESC-ordered pages and returns the first
 // scan matching target (and branch, when supplied). statusFilter, when set,
 // restricts to that lifecycle status. Returns nil when no match is found.
@@ -237,6 +397,16 @@ func parseTenantID(raw string) (uuid.UUID, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil || id == uuid.Nil {
 		return uuid.Nil, status.Error(codes.InvalidArgument, "invalid tenant_id")
+	}
+	return id, nil
+}
+
+// parseUserID validates a request-supplied user_id. Callers that treat an empty
+// user_id as "no user layer" must check for "" before calling this.
+func parseUserID(raw string) (uuid.UUID, error) {
+	id, err := uuid.Parse(raw)
+	if err != nil || id == uuid.Nil {
+		return uuid.Nil, status.Error(codes.InvalidArgument, "invalid user_id")
 	}
 	return id, nil
 }
@@ -342,11 +512,16 @@ func toGRPC(err error) error {
 	case errors.Is(err, domain.ErrScanNotFound),
 		errors.Is(err, domain.ErrFindingNotFound),
 		errors.Is(err, domain.ErrAssetNotFound),
+		// The gate-policy surface maps absence to exists=false before reaching
+		// here; these arms exist so a future caller cannot leak an Internal.
+		errors.Is(err, domain.ErrGatePolicyNotFound),
+		errors.Is(err, domain.ErrGateUserPrefNotFound),
 		errors.Is(err, domain.ErrNotFound):
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrInvalidScan),
 		errors.Is(err, domain.ErrInvalidFinding),
 		errors.Is(err, domain.ErrInvalidAsset),
+		errors.Is(err, domain.ErrInvalidGatePolicy),
 		errors.Is(err, domain.ErrInvalidFingerprint):
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, domain.ErrScanInProgress),

@@ -1205,6 +1205,600 @@ func (x *Finding) GetLastSeenAt() *timestamppb.Timestamp {
 	return nil
 }
 
+type ResolveGatePolicyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TenantId      string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // the deploy requester (pipeline RequestedBy)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolveGatePolicyRequest) Reset() {
+	*x = ResolveGatePolicyRequest{}
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveGatePolicyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveGatePolicyRequest) ProtoMessage() {}
+
+func (x *ResolveGatePolicyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveGatePolicyRequest.ProtoReflect.Descriptor instead.
+func (*ResolveGatePolicyRequest) Descriptor() ([]byte, []int) {
+	return file_proto_code_analysis_v1_code_analysis_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ResolveGatePolicyRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *ResolveGatePolicyRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type ResolveGatePolicyResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Set               bool                   `protobuf:"varint,1,opt,name=set,proto3" json:"set,omitempty"`                                                     // false: apply the caller's platform default
+	Mode              string                 `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`                                                    // enforce | warn | off
+	SeverityThreshold string                 `protobuf:"bytes,3,opt,name=severity_threshold,json=severityThreshold,proto3" json:"severity_threshold,omitempty"` // critical | high | medium | low
+	Source            string                 `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`                                                // org | user | org_default | unset
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ResolveGatePolicyResponse) Reset() {
+	*x = ResolveGatePolicyResponse{}
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveGatePolicyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveGatePolicyResponse) ProtoMessage() {}
+
+func (x *ResolveGatePolicyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveGatePolicyResponse.ProtoReflect.Descriptor instead.
+func (*ResolveGatePolicyResponse) Descriptor() ([]byte, []int) {
+	return file_proto_code_analysis_v1_code_analysis_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ResolveGatePolicyResponse) GetSet() bool {
+	if x != nil {
+		return x.Set
+	}
+	return false
+}
+
+func (x *ResolveGatePolicyResponse) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *ResolveGatePolicyResponse) GetSeverityThreshold() string {
+	if x != nil {
+		return x.SeverityThreshold
+	}
+	return ""
+}
+
+func (x *ResolveGatePolicyResponse) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+type GetGatePolicyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TenantId      string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGatePolicyRequest) Reset() {
+	*x = GetGatePolicyRequest{}
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGatePolicyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGatePolicyRequest) ProtoMessage() {}
+
+func (x *GetGatePolicyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGatePolicyRequest.ProtoReflect.Descriptor instead.
+func (*GetGatePolicyRequest) Descriptor() ([]byte, []int) {
+	return file_proto_code_analysis_v1_code_analysis_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetGatePolicyRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+// The org policy row. exists=false: the org has no policy (other fields zero).
+type GateOrgPolicy struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Exists            bool                   `protobuf:"varint,1,opt,name=exists,proto3" json:"exists,omitempty"`
+	TenantId          string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Mode              string                 `protobuf:"bytes,3,opt,name=mode,proto3" json:"mode,omitempty"`
+	SeverityThreshold string                 `protobuf:"bytes,4,opt,name=severity_threshold,json=severityThreshold,proto3" json:"severity_threshold,omitempty"`
+	Locked            bool                   `protobuf:"varint,5,opt,name=locked,proto3" json:"locked,omitempty"`
+	UpdatedBy         string                 `protobuf:"bytes,6,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"`
+	UpdatedAt         *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GateOrgPolicy) Reset() {
+	*x = GateOrgPolicy{}
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GateOrgPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GateOrgPolicy) ProtoMessage() {}
+
+func (x *GateOrgPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GateOrgPolicy.ProtoReflect.Descriptor instead.
+func (*GateOrgPolicy) Descriptor() ([]byte, []int) {
+	return file_proto_code_analysis_v1_code_analysis_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GateOrgPolicy) GetExists() bool {
+	if x != nil {
+		return x.Exists
+	}
+	return false
+}
+
+func (x *GateOrgPolicy) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *GateOrgPolicy) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *GateOrgPolicy) GetSeverityThreshold() string {
+	if x != nil {
+		return x.SeverityThreshold
+	}
+	return ""
+}
+
+func (x *GateOrgPolicy) GetLocked() bool {
+	if x != nil {
+		return x.Locked
+	}
+	return false
+}
+
+func (x *GateOrgPolicy) GetUpdatedBy() string {
+	if x != nil {
+		return x.UpdatedBy
+	}
+	return ""
+}
+
+func (x *GateOrgPolicy) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type SetGatePolicyRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	TenantId             string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	UpdatedBy            string                 `protobuf:"bytes,2,opt,name=updated_by,json=updatedBy,proto3" json:"updated_by,omitempty"` // BFF-forwarded admin identity (audit)
+	Clear                bool                   `protobuf:"varint,3,opt,name=clear,proto3" json:"clear,omitempty"`                         // delete the org policy; set_* ignored
+	SetMode              bool                   `protobuf:"varint,4,opt,name=set_mode,json=setMode,proto3" json:"set_mode,omitempty"`
+	Mode                 string                 `protobuf:"bytes,5,opt,name=mode,proto3" json:"mode,omitempty"`
+	SetSeverityThreshold bool                   `protobuf:"varint,6,opt,name=set_severity_threshold,json=setSeverityThreshold,proto3" json:"set_severity_threshold,omitempty"`
+	SeverityThreshold    string                 `protobuf:"bytes,7,opt,name=severity_threshold,json=severityThreshold,proto3" json:"severity_threshold,omitempty"`
+	SetLocked            bool                   `protobuf:"varint,8,opt,name=set_locked,json=setLocked,proto3" json:"set_locked,omitempty"`
+	Locked               bool                   `protobuf:"varint,9,opt,name=locked,proto3" json:"locked,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *SetGatePolicyRequest) Reset() {
+	*x = SetGatePolicyRequest{}
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGatePolicyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGatePolicyRequest) ProtoMessage() {}
+
+func (x *SetGatePolicyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGatePolicyRequest.ProtoReflect.Descriptor instead.
+func (*SetGatePolicyRequest) Descriptor() ([]byte, []int) {
+	return file_proto_code_analysis_v1_code_analysis_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *SetGatePolicyRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *SetGatePolicyRequest) GetUpdatedBy() string {
+	if x != nil {
+		return x.UpdatedBy
+	}
+	return ""
+}
+
+func (x *SetGatePolicyRequest) GetClear() bool {
+	if x != nil {
+		return x.Clear
+	}
+	return false
+}
+
+func (x *SetGatePolicyRequest) GetSetMode() bool {
+	if x != nil {
+		return x.SetMode
+	}
+	return false
+}
+
+func (x *SetGatePolicyRequest) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *SetGatePolicyRequest) GetSetSeverityThreshold() bool {
+	if x != nil {
+		return x.SetSeverityThreshold
+	}
+	return false
+}
+
+func (x *SetGatePolicyRequest) GetSeverityThreshold() string {
+	if x != nil {
+		return x.SeverityThreshold
+	}
+	return ""
+}
+
+func (x *SetGatePolicyRequest) GetSetLocked() bool {
+	if x != nil {
+		return x.SetLocked
+	}
+	return false
+}
+
+func (x *SetGatePolicyRequest) GetLocked() bool {
+	if x != nil {
+		return x.Locked
+	}
+	return false
+}
+
+type GetGateUserPrefRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TenantId      string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGateUserPrefRequest) Reset() {
+	*x = GetGateUserPrefRequest{}
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGateUserPrefRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGateUserPrefRequest) ProtoMessage() {}
+
+func (x *GetGateUserPrefRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGateUserPrefRequest.ProtoReflect.Descriptor instead.
+func (*GetGateUserPrefRequest) Descriptor() ([]byte, []int) {
+	return file_proto_code_analysis_v1_code_analysis_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *GetGateUserPrefRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *GetGateUserPrefRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+// One member's preference row. exists=false: no preference set.
+type GateUserPref struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Exists            bool                   `protobuf:"varint,1,opt,name=exists,proto3" json:"exists,omitempty"`
+	TenantId          string                 `protobuf:"bytes,2,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	UserId            string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Mode              string                 `protobuf:"bytes,4,opt,name=mode,proto3" json:"mode,omitempty"`
+	SeverityThreshold string                 `protobuf:"bytes,5,opt,name=severity_threshold,json=severityThreshold,proto3" json:"severity_threshold,omitempty"`
+	UpdatedAt         *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GateUserPref) Reset() {
+	*x = GateUserPref{}
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GateUserPref) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GateUserPref) ProtoMessage() {}
+
+func (x *GateUserPref) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GateUserPref.ProtoReflect.Descriptor instead.
+func (*GateUserPref) Descriptor() ([]byte, []int) {
+	return file_proto_code_analysis_v1_code_analysis_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *GateUserPref) GetExists() bool {
+	if x != nil {
+		return x.Exists
+	}
+	return false
+}
+
+func (x *GateUserPref) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *GateUserPref) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *GateUserPref) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *GateUserPref) GetSeverityThreshold() string {
+	if x != nil {
+		return x.SeverityThreshold
+	}
+	return ""
+}
+
+func (x *GateUserPref) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type SetGateUserPrefRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	TenantId             string                 `protobuf:"bytes,1,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	UserId               string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Clear                bool                   `protobuf:"varint,3,opt,name=clear,proto3" json:"clear,omitempty"`
+	SetMode              bool                   `protobuf:"varint,4,opt,name=set_mode,json=setMode,proto3" json:"set_mode,omitempty"`
+	Mode                 string                 `protobuf:"bytes,5,opt,name=mode,proto3" json:"mode,omitempty"`
+	SetSeverityThreshold bool                   `protobuf:"varint,6,opt,name=set_severity_threshold,json=setSeverityThreshold,proto3" json:"set_severity_threshold,omitempty"`
+	SeverityThreshold    string                 `protobuf:"bytes,7,opt,name=severity_threshold,json=severityThreshold,proto3" json:"severity_threshold,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *SetGateUserPrefRequest) Reset() {
+	*x = SetGateUserPrefRequest{}
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGateUserPrefRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGateUserPrefRequest) ProtoMessage() {}
+
+func (x *SetGateUserPrefRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_code_analysis_v1_code_analysis_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGateUserPrefRequest.ProtoReflect.Descriptor instead.
+func (*SetGateUserPrefRequest) Descriptor() ([]byte, []int) {
+	return file_proto_code_analysis_v1_code_analysis_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *SetGateUserPrefRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *SetGateUserPrefRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *SetGateUserPrefRequest) GetClear() bool {
+	if x != nil {
+		return x.Clear
+	}
+	return false
+}
+
+func (x *SetGateUserPrefRequest) GetSetMode() bool {
+	if x != nil {
+		return x.SetMode
+	}
+	return false
+}
+
+func (x *SetGateUserPrefRequest) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *SetGateUserPrefRequest) GetSetSeverityThreshold() bool {
+	if x != nil {
+		return x.SetSeverityThreshold
+	}
+	return false
+}
+
+func (x *SetGateUserPrefRequest) GetSeverityThreshold() string {
+	if x != nil {
+		return x.SeverityThreshold
+	}
+	return ""
+}
+
 var File_proto_code_analysis_v1_code_analysis_proto protoreflect.FileDescriptor
 
 const file_proto_code_analysis_v1_code_analysis_proto_rawDesc = "" +
@@ -1328,14 +1922,70 @@ const file_proto_code_analysis_v1_code_analysis_proto_rawDesc = "" +
 	"\vremediation\x18\x12 \x01(\tR\vremediation\x12>\n" +
 	"\rfirst_seen_at\x18\x13 \x01(\v2\x1a.google.protobuf.TimestampR\vfirstSeenAt\x12<\n" +
 	"\flast_seen_at\x18\x14 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"lastSeenAt2\xda\x04\n" +
+	"lastSeenAt\"P\n" +
+	"\x18ResolveGatePolicyRequest\x12\x1b\n" +
+	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x88\x01\n" +
+	"\x19ResolveGatePolicyResponse\x12\x10\n" +
+	"\x03set\x18\x01 \x01(\bR\x03set\x12\x12\n" +
+	"\x04mode\x18\x02 \x01(\tR\x04mode\x12-\n" +
+	"\x12severity_threshold\x18\x03 \x01(\tR\x11severityThreshold\x12\x16\n" +
+	"\x06source\x18\x04 \x01(\tR\x06source\"3\n" +
+	"\x14GetGatePolicyRequest\x12\x1b\n" +
+	"\ttenant_id\x18\x01 \x01(\tR\btenantId\"\xf9\x01\n" +
+	"\rGateOrgPolicy\x12\x16\n" +
+	"\x06exists\x18\x01 \x01(\bR\x06exists\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x12\n" +
+	"\x04mode\x18\x03 \x01(\tR\x04mode\x12-\n" +
+	"\x12severity_threshold\x18\x04 \x01(\tR\x11severityThreshold\x12\x16\n" +
+	"\x06locked\x18\x05 \x01(\bR\x06locked\x12\x1d\n" +
+	"\n" +
+	"updated_by\x18\x06 \x01(\tR\tupdatedBy\x129\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xb3\x02\n" +
+	"\x14SetGatePolicyRequest\x12\x1b\n" +
+	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x1d\n" +
+	"\n" +
+	"updated_by\x18\x02 \x01(\tR\tupdatedBy\x12\x14\n" +
+	"\x05clear\x18\x03 \x01(\bR\x05clear\x12\x19\n" +
+	"\bset_mode\x18\x04 \x01(\bR\asetMode\x12\x12\n" +
+	"\x04mode\x18\x05 \x01(\tR\x04mode\x124\n" +
+	"\x16set_severity_threshold\x18\x06 \x01(\bR\x14setSeverityThreshold\x12-\n" +
+	"\x12severity_threshold\x18\a \x01(\tR\x11severityThreshold\x12\x1d\n" +
+	"\n" +
+	"set_locked\x18\b \x01(\bR\tsetLocked\x12\x16\n" +
+	"\x06locked\x18\t \x01(\bR\x06locked\"N\n" +
+	"\x16GetGateUserPrefRequest\x12\x1b\n" +
+	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xda\x01\n" +
+	"\fGateUserPref\x12\x16\n" +
+	"\x06exists\x18\x01 \x01(\bR\x06exists\x12\x1b\n" +
+	"\ttenant_id\x18\x02 \x01(\tR\btenantId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04mode\x18\x04 \x01(\tR\x04mode\x12-\n" +
+	"\x12severity_threshold\x18\x05 \x01(\tR\x11severityThreshold\x129\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xf8\x01\n" +
+	"\x16SetGateUserPrefRequest\x12\x1b\n" +
+	"\ttenant_id\x18\x01 \x01(\tR\btenantId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x14\n" +
+	"\x05clear\x18\x03 \x01(\bR\x05clear\x12\x19\n" +
+	"\bset_mode\x18\x04 \x01(\bR\asetMode\x12\x12\n" +
+	"\x04mode\x18\x05 \x01(\tR\x04mode\x124\n" +
+	"\x16set_severity_threshold\x18\x06 \x01(\bR\x14setSeverityThreshold\x12-\n" +
+	"\x12severity_threshold\x18\a \x01(\tR\x11severityThreshold2\xb6\b\n" +
 	"\x13CodeAnalysisService\x12g\n" +
 	"\x13GetSecurityBaseline\x12,.code_analysis.v1.GetSecurityBaselineRequest\x1a\".code_analysis.v1.SecurityBaseline\x12i\n" +
 	"\x16GetCurrentSecurityScan\x12/.code_analysis.v1.GetCurrentSecurityScanRequest\x1a\x1e.code_analysis.v1.SecurityScan\x12d\n" +
 	"\x12GetComplexityDelta\x12+.code_analysis.v1.GetComplexityDeltaRequest\x1a!.code_analysis.v1.ComplexityDelta\x12Q\n" +
 	"\vRequestScan\x12$.code_analysis.v1.RequestScanRequest\x1a\x1c.code_analysis.v1.ScanHandle\x12W\n" +
 	"\rGetScanStatus\x12&.code_analysis.v1.GetScanStatusRequest\x1a\x1e.code_analysis.v1.SecurityScan\x12]\n" +
-	"\fListFindings\x12%.code_analysis.v1.ListFindingsRequest\x1a&.code_analysis.v1.ListFindingsResponseBNZLgithub.com/sentiae/code-analysis-service/gen/code_analysis/v1;codeanalysisv1b\x06proto3"
+	"\fListFindings\x12%.code_analysis.v1.ListFindingsRequest\x1a&.code_analysis.v1.ListFindingsResponse\x12l\n" +
+	"\x11ResolveGatePolicy\x12*.code_analysis.v1.ResolveGatePolicyRequest\x1a+.code_analysis.v1.ResolveGatePolicyResponse\x12X\n" +
+	"\rGetGatePolicy\x12&.code_analysis.v1.GetGatePolicyRequest\x1a\x1f.code_analysis.v1.GateOrgPolicy\x12X\n" +
+	"\rSetGatePolicy\x12&.code_analysis.v1.SetGatePolicyRequest\x1a\x1f.code_analysis.v1.GateOrgPolicy\x12[\n" +
+	"\x0fGetGateUserPref\x12(.code_analysis.v1.GetGateUserPrefRequest\x1a\x1e.code_analysis.v1.GateUserPref\x12[\n" +
+	"\x0fSetGateUserPref\x12(.code_analysis.v1.SetGateUserPrefRequest\x1a\x1e.code_analysis.v1.GateUserPrefBNZLgithub.com/sentiae/code-analysis-service/gen/code_analysis/v1;codeanalysisv1b\x06proto3"
 
 var (
 	file_proto_code_analysis_v1_code_analysis_proto_rawDescOnce sync.Once
@@ -1349,7 +1999,7 @@ func file_proto_code_analysis_v1_code_analysis_proto_rawDescGZIP() []byte {
 	return file_proto_code_analysis_v1_code_analysis_proto_rawDescData
 }
 
-var file_proto_code_analysis_v1_code_analysis_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_proto_code_analysis_v1_code_analysis_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_proto_code_analysis_v1_code_analysis_proto_goTypes = []any{
 	(*SecurityBaseline)(nil),              // 0: code_analysis.v1.SecurityBaseline
 	(*SecurityScan)(nil),                  // 1: code_analysis.v1.SecurityScan
@@ -1363,35 +2013,55 @@ var file_proto_code_analysis_v1_code_analysis_proto_goTypes = []any{
 	(*ListFindingsRequest)(nil),           // 9: code_analysis.v1.ListFindingsRequest
 	(*ListFindingsResponse)(nil),          // 10: code_analysis.v1.ListFindingsResponse
 	(*Finding)(nil),                       // 11: code_analysis.v1.Finding
-	(*timestamppb.Timestamp)(nil),         // 12: google.protobuf.Timestamp
+	(*ResolveGatePolicyRequest)(nil),      // 12: code_analysis.v1.ResolveGatePolicyRequest
+	(*ResolveGatePolicyResponse)(nil),     // 13: code_analysis.v1.ResolveGatePolicyResponse
+	(*GetGatePolicyRequest)(nil),          // 14: code_analysis.v1.GetGatePolicyRequest
+	(*GateOrgPolicy)(nil),                 // 15: code_analysis.v1.GateOrgPolicy
+	(*SetGatePolicyRequest)(nil),          // 16: code_analysis.v1.SetGatePolicyRequest
+	(*GetGateUserPrefRequest)(nil),        // 17: code_analysis.v1.GetGateUserPrefRequest
+	(*GateUserPref)(nil),                  // 18: code_analysis.v1.GateUserPref
+	(*SetGateUserPrefRequest)(nil),        // 19: code_analysis.v1.SetGateUserPrefRequest
+	(*timestamppb.Timestamp)(nil),         // 20: google.protobuf.Timestamp
 }
 var file_proto_code_analysis_v1_code_analysis_proto_depIdxs = []int32{
-	12, // 0: code_analysis.v1.SecurityBaseline.completed_at:type_name -> google.protobuf.Timestamp
-	12, // 1: code_analysis.v1.SecurityScan.started_at:type_name -> google.protobuf.Timestamp
-	12, // 2: code_analysis.v1.SecurityScan.completed_at:type_name -> google.protobuf.Timestamp
-	12, // 3: code_analysis.v1.SecurityScan.created_at:type_name -> google.protobuf.Timestamp
-	12, // 4: code_analysis.v1.SecurityScan.updated_at:type_name -> google.protobuf.Timestamp
-	12, // 5: code_analysis.v1.ScanHandle.queued_at:type_name -> google.protobuf.Timestamp
+	20, // 0: code_analysis.v1.SecurityBaseline.completed_at:type_name -> google.protobuf.Timestamp
+	20, // 1: code_analysis.v1.SecurityScan.started_at:type_name -> google.protobuf.Timestamp
+	20, // 2: code_analysis.v1.SecurityScan.completed_at:type_name -> google.protobuf.Timestamp
+	20, // 3: code_analysis.v1.SecurityScan.created_at:type_name -> google.protobuf.Timestamp
+	20, // 4: code_analysis.v1.SecurityScan.updated_at:type_name -> google.protobuf.Timestamp
+	20, // 5: code_analysis.v1.ScanHandle.queued_at:type_name -> google.protobuf.Timestamp
 	11, // 6: code_analysis.v1.ListFindingsResponse.findings:type_name -> code_analysis.v1.Finding
-	12, // 7: code_analysis.v1.Finding.first_seen_at:type_name -> google.protobuf.Timestamp
-	12, // 8: code_analysis.v1.Finding.last_seen_at:type_name -> google.protobuf.Timestamp
-	2,  // 9: code_analysis.v1.CodeAnalysisService.GetSecurityBaseline:input_type -> code_analysis.v1.GetSecurityBaselineRequest
-	3,  // 10: code_analysis.v1.CodeAnalysisService.GetCurrentSecurityScan:input_type -> code_analysis.v1.GetCurrentSecurityScanRequest
-	4,  // 11: code_analysis.v1.CodeAnalysisService.GetComplexityDelta:input_type -> code_analysis.v1.GetComplexityDeltaRequest
-	6,  // 12: code_analysis.v1.CodeAnalysisService.RequestScan:input_type -> code_analysis.v1.RequestScanRequest
-	8,  // 13: code_analysis.v1.CodeAnalysisService.GetScanStatus:input_type -> code_analysis.v1.GetScanStatusRequest
-	9,  // 14: code_analysis.v1.CodeAnalysisService.ListFindings:input_type -> code_analysis.v1.ListFindingsRequest
-	0,  // 15: code_analysis.v1.CodeAnalysisService.GetSecurityBaseline:output_type -> code_analysis.v1.SecurityBaseline
-	1,  // 16: code_analysis.v1.CodeAnalysisService.GetCurrentSecurityScan:output_type -> code_analysis.v1.SecurityScan
-	5,  // 17: code_analysis.v1.CodeAnalysisService.GetComplexityDelta:output_type -> code_analysis.v1.ComplexityDelta
-	7,  // 18: code_analysis.v1.CodeAnalysisService.RequestScan:output_type -> code_analysis.v1.ScanHandle
-	1,  // 19: code_analysis.v1.CodeAnalysisService.GetScanStatus:output_type -> code_analysis.v1.SecurityScan
-	10, // 20: code_analysis.v1.CodeAnalysisService.ListFindings:output_type -> code_analysis.v1.ListFindingsResponse
-	15, // [15:21] is the sub-list for method output_type
-	9,  // [9:15] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	20, // 7: code_analysis.v1.Finding.first_seen_at:type_name -> google.protobuf.Timestamp
+	20, // 8: code_analysis.v1.Finding.last_seen_at:type_name -> google.protobuf.Timestamp
+	20, // 9: code_analysis.v1.GateOrgPolicy.updated_at:type_name -> google.protobuf.Timestamp
+	20, // 10: code_analysis.v1.GateUserPref.updated_at:type_name -> google.protobuf.Timestamp
+	2,  // 11: code_analysis.v1.CodeAnalysisService.GetSecurityBaseline:input_type -> code_analysis.v1.GetSecurityBaselineRequest
+	3,  // 12: code_analysis.v1.CodeAnalysisService.GetCurrentSecurityScan:input_type -> code_analysis.v1.GetCurrentSecurityScanRequest
+	4,  // 13: code_analysis.v1.CodeAnalysisService.GetComplexityDelta:input_type -> code_analysis.v1.GetComplexityDeltaRequest
+	6,  // 14: code_analysis.v1.CodeAnalysisService.RequestScan:input_type -> code_analysis.v1.RequestScanRequest
+	8,  // 15: code_analysis.v1.CodeAnalysisService.GetScanStatus:input_type -> code_analysis.v1.GetScanStatusRequest
+	9,  // 16: code_analysis.v1.CodeAnalysisService.ListFindings:input_type -> code_analysis.v1.ListFindingsRequest
+	12, // 17: code_analysis.v1.CodeAnalysisService.ResolveGatePolicy:input_type -> code_analysis.v1.ResolveGatePolicyRequest
+	14, // 18: code_analysis.v1.CodeAnalysisService.GetGatePolicy:input_type -> code_analysis.v1.GetGatePolicyRequest
+	16, // 19: code_analysis.v1.CodeAnalysisService.SetGatePolicy:input_type -> code_analysis.v1.SetGatePolicyRequest
+	17, // 20: code_analysis.v1.CodeAnalysisService.GetGateUserPref:input_type -> code_analysis.v1.GetGateUserPrefRequest
+	19, // 21: code_analysis.v1.CodeAnalysisService.SetGateUserPref:input_type -> code_analysis.v1.SetGateUserPrefRequest
+	0,  // 22: code_analysis.v1.CodeAnalysisService.GetSecurityBaseline:output_type -> code_analysis.v1.SecurityBaseline
+	1,  // 23: code_analysis.v1.CodeAnalysisService.GetCurrentSecurityScan:output_type -> code_analysis.v1.SecurityScan
+	5,  // 24: code_analysis.v1.CodeAnalysisService.GetComplexityDelta:output_type -> code_analysis.v1.ComplexityDelta
+	7,  // 25: code_analysis.v1.CodeAnalysisService.RequestScan:output_type -> code_analysis.v1.ScanHandle
+	1,  // 26: code_analysis.v1.CodeAnalysisService.GetScanStatus:output_type -> code_analysis.v1.SecurityScan
+	10, // 27: code_analysis.v1.CodeAnalysisService.ListFindings:output_type -> code_analysis.v1.ListFindingsResponse
+	13, // 28: code_analysis.v1.CodeAnalysisService.ResolveGatePolicy:output_type -> code_analysis.v1.ResolveGatePolicyResponse
+	15, // 29: code_analysis.v1.CodeAnalysisService.GetGatePolicy:output_type -> code_analysis.v1.GateOrgPolicy
+	15, // 30: code_analysis.v1.CodeAnalysisService.SetGatePolicy:output_type -> code_analysis.v1.GateOrgPolicy
+	18, // 31: code_analysis.v1.CodeAnalysisService.GetGateUserPref:output_type -> code_analysis.v1.GateUserPref
+	18, // 32: code_analysis.v1.CodeAnalysisService.SetGateUserPref:output_type -> code_analysis.v1.GateUserPref
+	22, // [22:33] is the sub-list for method output_type
+	11, // [11:22] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_proto_code_analysis_v1_code_analysis_proto_init() }
@@ -1405,7 +2075,7 @@ func file_proto_code_analysis_v1_code_analysis_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_code_analysis_v1_code_analysis_proto_rawDesc), len(file_proto_code_analysis_v1_code_analysis_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

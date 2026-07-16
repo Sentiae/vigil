@@ -23,6 +23,11 @@ var (
 	ErrPolicyNotFound = errors.New("policy not found")
 	ErrInvalidPolicy  = errors.New("invalid policy")
 
+	// gate policy
+	ErrGatePolicyNotFound   = errors.New("gate policy not found")
+	ErrGateUserPrefNotFound = errors.New("gate user preference not found")
+	ErrInvalidGatePolicy    = errors.New("invalid gate policy")
+
 	// SLA errors
 	ErrSLABreached = errors.New("SLA deadline breached")
 

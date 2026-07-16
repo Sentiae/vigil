@@ -38,6 +38,18 @@ service CodeAnalysisService {
   // ListFindings is a paginated findings feed for a tenant, filterable
   // by severity / status / analysis type.
   rpc ListFindings(ListFindingsRequest) returns (ListFindingsResponse);
+
+  // ── Deploy-gate policy (docs/designs/security-gate-policy.md, additive P13, owner-approved) ──
+
+  // Delivery's gate read: the org/user-resolved policy. set=false means neither
+  // layer is configured — the caller applies its platform default.
+  rpc ResolveGatePolicy(ResolveGatePolicyRequest) returns (ResolveGatePolicyResponse);
+  // Settings surface (BFF-facing). Writes use the set_-guard pattern
+  // (identity eve_org.proto:59-73): only fields with set_<field>=true are applied.
+  rpc GetGatePolicy(GetGatePolicyRequest) returns (GateOrgPolicy);
+  rpc SetGatePolicy(SetGatePolicyRequest) returns (GateOrgPolicy);
+  rpc GetGateUserPref(GetGateUserPrefRequest) returns (GateUserPref);
+  rpc SetGateUserPref(SetGateUserPrefRequest) returns (GateUserPref);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -197,4 +209,72 @@ message Finding {
   string remediation = 18;
   google.protobuf.Timestamp first_seen_at = 19;
   google.protobuf.Timestamp last_seen_at = 20;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Deploy-gate policy
+// ─────────────────────────────────────────────────────────────────
+
+message ResolveGatePolicyRequest {
+  string tenant_id = 1;
+  string user_id = 2; // the deploy requester (pipeline RequestedBy)
+}
+
+message ResolveGatePolicyResponse {
+  bool set = 1;                    // false: apply the caller's platform default
+  string mode = 2;                 // enforce | warn | off
+  string severity_threshold = 3;   // critical | high | medium | low
+  string source = 4;               // org | user | org_default | unset
+}
+
+message GetGatePolicyRequest {
+  string tenant_id = 1;
+}
+
+// The org policy row. exists=false: the org has no policy (other fields zero).
+message GateOrgPolicy {
+  bool exists = 1;
+  string tenant_id = 2;
+  string mode = 3;
+  string severity_threshold = 4;
+  bool locked = 5;
+  string updated_by = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message SetGatePolicyRequest {
+  string tenant_id = 1;
+  string updated_by = 2;               // BFF-forwarded admin identity (audit)
+  bool clear = 3;                      // delete the org policy; set_* ignored
+  bool set_mode = 4;
+  string mode = 5;
+  bool set_severity_threshold = 6;
+  string severity_threshold = 7;
+  bool set_locked = 8;
+  bool locked = 9;
+}
+
+message GetGateUserPrefRequest {
+  string tenant_id = 1;
+  string user_id = 2;
+}
+
+// One member's preference row. exists=false: no preference set.
+message GateUserPref {
+  bool exists = 1;
+  string tenant_id = 2;
+  string user_id = 3;
+  string mode = 4;
+  string severity_threshold = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message SetGateUserPrefRequest {
+  string tenant_id = 1;
+  string user_id = 2;
+  bool clear = 3;
+  bool set_mode = 4;
+  string mode = 5;
+  bool set_severity_threshold = 6;
+  string severity_threshold = 7;
 }

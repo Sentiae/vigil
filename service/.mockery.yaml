@@ -2,7 +2,7 @@ with-expecter: true
 dir: "internal/mocks"
 outpkg: mocks
 packages:
-  github.com/sentiae/code-analysis-service/internal/port/repository:
+  github.com/sentiae/vigil/service/internal/port/repository:
     interfaces:
       FindingRepository:
       ScanRepository:
@@ -10,14 +10,15 @@ packages:
       OutboxRepository:
       AnalyticsRepository:
       GraphRepository:
-  github.com/sentiae/code-analysis-service/internal/port/usecase:
+      GatePolicyRepository:
+  github.com/sentiae/vigil/service/internal/port/usecase:
     interfaces:
       FindingUseCase:
       ScanUseCase:
       ComplianceUseCase:
-  github.com/sentiae/code-analysis-service/internal/port/scanner:
+  github.com/sentiae/vigil/service/internal/port/scanner:
     interfaces:
       Scanner:
-  github.com/sentiae/code-analysis-service/pkg/events:
+  github.com/sentiae/vigil/service/pkg/events:
     interfaces:
       Publisher:

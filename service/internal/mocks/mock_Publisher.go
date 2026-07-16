@@ -67,6 +67,52 @@ func (_c *MockPublisher_Close_Call) RunAndReturn(run func() error) *MockPublishe
 	return _c
 }
 
+// EnsureTopics provides a mock function with given fields: ctx
+func (_m *MockPublisher) EnsureTopics(ctx context.Context) error {
+	ret := _m.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for EnsureTopics")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context) error); ok {
+		r0 = rf(ctx)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockPublisher_EnsureTopics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'EnsureTopics'
+type MockPublisher_EnsureTopics_Call struct {
+	*mock.Call
+}
+
+// EnsureTopics is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockPublisher_Expecter) EnsureTopics(ctx interface{}) *MockPublisher_EnsureTopics_Call {
+	return &MockPublisher_EnsureTopics_Call{Call: _e.mock.On("EnsureTopics", ctx)}
+}
+
+func (_c *MockPublisher_EnsureTopics_Call) Run(run func(ctx context.Context)) *MockPublisher_EnsureTopics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockPublisher_EnsureTopics_Call) Return(_a0 error) *MockPublisher_EnsureTopics_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockPublisher_EnsureTopics_Call) RunAndReturn(run func(context.Context) error) *MockPublisher_EnsureTopics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Publish provides a mock function with given fields: ctx, eventType, data
 func (_m *MockPublisher) Publish(ctx context.Context, eventType string, data kafka.EventData) error {
 	ret := _m.Called(ctx, eventType, data)
