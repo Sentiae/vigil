@@ -176,12 +176,21 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	validate := validator.New()
-	if err := validate.Struct(&cfg); err != nil {
+	if err := newValidator().Struct(&cfg); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
 	return &cfg, nil
+}
+
+// newValidator builds the config validator with WithRequiredStructEnabled so
+// that `required` tags on the nested struct fields (Server/Database/Redis/
+// Telemetry) are actually enforced. Without the option, go-playground/validator
+// treats a `required` tag on a non-pointer struct field as a silent no-op — the
+// tag looks like a control but does nothing. This matches platform-kit's own
+// validation package, which already sets the option.
+func newValidator() *validator.Validate {
+	return validator.New(validator.WithRequiredStructEnabled())
 }
 
 func (c *Config) GetDatabaseURL() string {
