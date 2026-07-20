@@ -45,7 +45,6 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -109,12 +108,11 @@ require (
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.44.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/pgvector/pgvector-go v0.3.0
-	github.com/sentiae/platform-kit v0.0.0-00010101000000-000000000000
+	github.com/sentiae/platform-kit v0.3.1
 	github.com/spiffe/go-spiffe/v2 v2.6.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0
 	google.golang.org/protobuf v1.36.11
 )
-
-replace github.com/sentiae/platform-kit => ../../platform-kit

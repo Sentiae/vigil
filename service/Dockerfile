@@ -7,20 +7,23 @@ FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates
 
-ARG GITHUB_TOKEN
-ENV GOPRIVATE=github.com/sentiae/*
-RUN git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-
-# Repo-root build context (compose: context: .). Source is preserved at its
-# real nesting so the go.mod replace `../../platform-kit` resolves naturally.
+# Repo-root build context (compose: context: .).
 WORKDIR /src/vigil/service
-
-# Copy platform-kit (local replace dependency) to /src/platform-kit so
-# ../../platform-kit from /src/vigil/service resolves to it.
-COPY platform-kit/ /src/platform-kit/
 
 # Copy go.mod and go.sum first for better caching
 COPY vigil/service/go.mod vigil/service/go.sum ./
+# Fetch platform-kit (and everything else) through the Athens Go proxy — the
+# single source of truth. No ",direct" fallback: a proxy miss must FAIL rather
+# than silently fall back to direct git (which would re-expose the drift the
+# substrate forbids). GOPRIVATE/GONOPROXY left UNSET so all sentiae modules
+# route through Athens by construction; GONOSUMDB scopes the checksum-DB skip to
+# the private module (platform-kit is verified against the committed go.sum).
+ARG GOPROXY
+ARG GOFLAGS
+ENV GOPROXY=${GOPROXY} \
+    GOFLAGS=${GOFLAGS} \
+    GONOSUMDB=github.com/sentiae/* \
+    GOTOOLCHAIN=auto
 RUN go mod download
 
 # Copy source code
