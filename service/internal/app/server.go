@@ -122,7 +122,8 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 	// cmux: bff-service reaches it over SPIFFE mTLS (the D-155 gate-policy
 	// query), while delivery-service's plaintext + x-api-key client — the live
 	// SEC-04 security gate — keeps working unchanged on the same port. A SPIRE
-	// hiccup degrades to plaintext-only rather than wedge the service.
+	// hiccup REFUSES to serve under "strict" and degrades to plaintext-only only
+	// under "permissive" (a declared exemption).
 	// Runs alongside the Chi HTTP server, which is left fully intact.
 	//
 	// Caller auth (CLAUDE.md §23): the shared platform internal service-token
@@ -138,7 +139,7 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 	if pkconfig.MTLSMode() != pkconfig.MTLSModeOff {
 		s, srcErr := spiffe.NewSource(ctx)
 		if srcErr != nil {
-			logger.Warn(ctx, "SPIFFE source unavailable, degrading to plaintext", "err", srcErr)
+			logger.Warn(ctx, "SPIFFE source unavailable; under strict mTLS this service will refuse to serve, under permissive it accepts plaintext (posture exemption)", "mode", pkconfig.MTLSMode(), "err", srcErr)
 		} else {
 			src = s
 		}
