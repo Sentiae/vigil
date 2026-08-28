@@ -11,12 +11,12 @@ import (
 
 	_ "go.uber.org/automaxprocs"
 
-	"github.com/sentiae/vigil/service/internal/app"
-	"github.com/sentiae/vigil/service/pkg/config"
-	"github.com/sentiae/vigil/service/pkg/logger"
 	pkdebug "github.com/sentiae/platform-kit/debug"
 	pkkafka "github.com/sentiae/platform-kit/kafka"
 	otelkit "github.com/sentiae/platform-kit/otel"
+	"github.com/sentiae/vigil/service/internal/app"
+	"github.com/sentiae/vigil/service/pkg/config"
+	"github.com/sentiae/vigil/service/pkg/logger"
 )
 
 var (
@@ -50,9 +50,22 @@ func maybeRegisterKafkaSchemas() {
 	log.Printf("schema-registry bootstrap: registered %d schemas", result.Registered)
 }
 
-func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func main() { os.Exit(run()) }
+
+// run is the whole bootstrap, returning the process exit code rather than
+// exiting from inside it: an exit call skips deferred work, and on every
+// failure path — a refused SVID, a refused mTLS self-probe, a panicking accept
+// loop — the deferred srv.Close → shutdownTelemetry → stopPprof → stop are
+// exactly what must still run (§21 steps 7-8). The one process exit lives in
+// main, after run has returned and every defer has completed.
+func run() int {
+	// The signal context is installed FIRST, before any boot work: NewServer can
+	// wait up to 60s for an SVID and Start up to 15s for the self-probe, and a
+	// SIGTERM inside that window must cancel the wait, not take Go's default
+	// action of killing the process with no shutdown and no telemetry flush
+	// (CLAUDE.md §12).
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 	go maybeRegisterKafkaSchemas()
 
 	stopPprof := pkdebug.StartPprofServer(ctx, "VIGIL_DEBUG_PPROF")
@@ -62,7 +75,7 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Printf("Failed to load config: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	// 2. Initialize Telemetry (traces, metrics & logs → OTLP collector). Runs
@@ -92,9 +105,15 @@ func main() {
 	// 4. Create and wire the server
 	srv, err := app.NewServer(ctx, cfg, Version)
 	if err != nil {
+		if ctx.Err() != nil {
+			// A stop signal during setup (e.g. mid SVID wait) is a shutdown, not a
+			// failed boot: exit 0 so the supervisor does not restart a stopped unit.
+			logger.Info(ctx, "Shutdown signal during server setup", "error", err)
+			return 0
+		}
 		logger.Error(ctx, "Server setup failed", "error", err)
 		fmt.Fprintf(os.Stderr, "FATAL: server setup failed: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer srv.Close()
 
@@ -102,18 +121,21 @@ func main() {
 	serverErr := make(chan error, 2)
 	srv.Start(ctx, serverErr)
 
-	// 6. Wait for interrupt signal or server error
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
+	// 6. Wait for a stop signal or a server error
+	exitCode := 0
 	select {
-	case <-quit:
+	case <-ctx.Done():
 		logger.Info(ctx, "Received shutdown signal")
 	case err := <-serverErr:
 		logger.Error(ctx, "Server startup failed, initiating shutdown", "error", err)
+		exitCode = 1
 	}
 
-	// 7. Graceful shutdown
-	cancel()
+	// 7. Graceful shutdown; the deferred srv.Close → shutdownTelemetry →
+	// stopPprof → stop run in that order on every return path (§21 steps 7-8).
+	// A boot that could not serve returns NON-ZERO so the supervisor restarts it
+	// instead of leaving a half-started process alive (D-189: a mesh listener
+	// that cannot serve mTLS is a refusal, not a degrade).
 	srv.Shutdown(ctx)
+	return exitCode
 }

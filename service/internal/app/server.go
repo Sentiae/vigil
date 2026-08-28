@@ -24,7 +24,6 @@ import (
 	pkconfig "github.com/sentiae/platform-kit/config"
 	"github.com/sentiae/platform-kit/grpcserver"
 	pkinterceptor "github.com/sentiae/platform-kit/interceptor"
-	"github.com/sentiae/platform-kit/spiffe"
 
 	codeanalysisv1 "github.com/sentiae/vigil/service/gen/proto/code_analysis/v1"
 	customHTTP "github.com/sentiae/vigil/service/internal/adapter/handler/http"
@@ -117,32 +116,23 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 	}
 
 	// gRPC server for the P13 CodeAnalysisService seam, on the zero-trust mesh
-	// via platform-kit's dual-mode builder (matching catalog-service). At
-	// APP_GRPC_MTLS_MODE=permissive one listener serves BOTH transports through
-	// cmux: bff-service reaches it over SPIFFE mTLS (the D-155 gate-policy
-	// query), while delivery-service's plaintext + x-api-key client — the live
-	// SEC-04 security gate — keeps working unchanged on the same port. A SPIRE
-	// hiccup REFUSES to serve under "strict" and degrades to plaintext-only only
-	// under "permissive" (a declared exemption).
+	// via platform-kit's dual-mode builder. Vigil runs STRICT: every caller —
+	// delivery's deploy gate, foundry and git — dials through grpcclient.Dial
+	// with an SVID, so the listener presents and requires mTLS. A mesh mode with
+	// no SVID is a boot refusal (D-189), and the builder's Serve PROVES the mTLS
+	// transport against the live listener before it reports ready.
 	// Runs alongside the Chi HTTP server, which is left fully intact.
 	//
-	// Caller auth (CLAUDE.md §23): the shared platform internal service-token
-	// via x-api-key, constant-time compared against APP_INTERNAL_SERVICE_TOKEN
-	// (empty → trust in-cluster; mirrors catalog-service). The standalone
-	// UnaryAuth interceptor runs after the local recovery + logging, and the
-	// builder prepends the SVID interceptors, so a peer SVID authenticates the
-	// mTLS caller while x-api-key authenticates the plaintext one through this
-	// same config. TokenValidator is nil (this M2M seam takes tenant_id in the
-	// request, not a user JWT). AcceptAPIKey stays true and RequirePeerSVID
-	// stays off: retiring the shared token is a later mesh-wide rollout step.
-	var src *workloadapi.X509Source
-	if pkconfig.MTLSMode() != pkconfig.MTLSModeOff {
-		s, srcErr := spiffe.NewSource(ctx)
-		if srcErr != nil {
-			logger.Warn(ctx, "SPIFFE source unavailable; under strict mTLS this service will refuse to serve, under permissive it accepts plaintext (posture exemption)", "mode", pkconfig.MTLSMode(), "err", srcErr)
-		} else {
-			src = s
-		}
+	// Caller auth (CLAUDE.md §23): the peer SVID authenticates the mesh caller
+	// first (the builder prepends the SVID interceptors); the shared platform
+	// internal service token via x-api-key, constant-time compared against
+	// APP_INTERNAL_SERVICE_TOKEN (empty → trust in-cluster), is still accepted
+	// as the legacy path until mesh-wide retirement. TokenValidator is nil (this
+	// M2M seam takes tenant_id in the request, not a user JWT). AcceptAPIKey
+	// stays true and RequirePeerSVID stays off: both are later rollout steps.
+	src, err := meshSource(ctx)
+	if err != nil {
+		return nil, err
 	}
 	s.src = src
 
@@ -150,17 +140,7 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 		Mode:        pkconfig.MTLSMode(),
 		Source:      src,
 		ServiceName: "vigil",
-	},
-		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ChainUnaryInterceptor(
-			recoveryUnaryInterceptor(),
-			loggingUnaryInterceptor(),
-			pkinterceptor.UnaryAuth(pkinterceptor.AuthConfig{
-				APIKeyValidator: serviceTokenValidator{expected: cfg.Internal.ServiceToken},
-				AcceptAPIKey:    true,
-			}),
-		),
-	)
+	}, GRPCServerOptions(cfg)...)
 	// Registrar fans out to every underlying transport; the builder's Serve
 	// registers reflection (grpcurl/ops) + health on each, so neither is
 	// registered here.
@@ -250,26 +230,89 @@ func NewServer(ctx context.Context, cfg *config.Config, version string) (*Server
 	return s, nil
 }
 
-// Start launches the HTTP + gRPC servers in background goroutines.
+// GRPCServerOptions returns the base server options vigil's mesh listener is
+// built with: OTel instrumentation plus recovery → logging → auth in that
+// execution order. platform-kit's builder prepends the SVID interceptors and
+// appends org propagation around them.
+//
+// It is a named function so the CodeAnalysisService mTLS regression serves the
+// handler through the REAL chain this process serves, not a look-alike.
+func GRPCServerOptions(cfg *config.Config) []grpc.ServerOption {
+	return []grpc.ServerOption{
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ChainUnaryInterceptor(
+			recoveryUnaryInterceptor(),
+			loggingUnaryInterceptor(),
+			pkinterceptor.UnaryAuth(pkinterceptor.AuthConfig{
+				APIKeyValidator: serviceTokenValidator{expected: cfg.Internal.ServiceToken},
+				AcceptAPIKey:    true,
+			}),
+		),
+	}
+}
+
+// Start binds and serves the gRPC listener, waits for the mesh transport to be
+// PROVEN, and only then starts the HTTP server.
+//
+// The order is load-bearing (D-189): platform-kit's Serve dials its own
+// listener with a real mTLS client before publishing on Ready, so a boot that
+// cannot serve mTLS never reaches the HTTP listener and can never answer
+// /health as a healthy plaintext port. On a refusal Serve has already put the
+// error on serverErr, which main turns into exit 1.
 func (s *Server) Start(ctx context.Context, serverErr chan<- error) {
+	logger.Info(ctx, "gRPC server starting", "addr", s.grpcAddr)
+	lis, err := net.Listen("tcp", s.grpcAddr)
+	if err != nil {
+		serverErr <- fmt.Errorf("gRPC listen failed: %w", err)
+		return
+	}
+
+	serveDone := make(chan struct{})
+	// reason: no ctx on purpose — the accept loop is ended by the listener
+	// closing (Shutdown → GracefulStop), not by a context.
 	go func() {
+		defer close(serveDone)
+		defer forwardPanic(serverErr, "gRPC server")
+		if err := s.grpcServer.Serve(lis); err != nil {
+			serverErr <- fmt.Errorf("gRPC server failed: %w", err)
+		}
+	}()
+
+	select {
+	case err := <-s.grpcServer.Ready():
+		if err != nil {
+			// Serve published the refusal on serverErr; HTTP never starts.
+			return
+		}
+	case <-serveDone:
+		// Serve ended (error or panic) before reporting ready; the goroutine
+		// published it on serverErr. HTTP never starts.
+		return
+	case <-ctx.Done():
+		// Stop signal during the self-probe: main proceeds to Shutdown, which
+		// stops the builder and fails the probe. HTTP never starts.
+		return
+	}
+	logger.Info(ctx, "gRPC server ready", "addr", s.grpcAddr, "mode", pkconfig.MTLSMode())
+
+	go func() {
+		defer forwardPanic(serverErr, "HTTP server")
 		logger.Info(ctx, "HTTP server starting", "addr", s.httpServer.Addr)
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverErr <- fmt.Errorf("HTTP server failed: %w", err)
 		}
 	}()
+}
 
-	go func() {
-		logger.Info(ctx, "gRPC server starting", "addr", s.grpcAddr)
-		lis, err := net.Listen("tcp", s.grpcAddr)
-		if err != nil {
-			serverErr <- fmt.Errorf("gRPC listen failed: %w", err)
-			return
-		}
-		if err := s.grpcServer.Serve(lis); err != nil {
-			serverErr <- fmt.Errorf("gRPC server failed: %w", err)
-		}
-	}()
+// forwardPanic is deferred directly by a server goroutine. A panic in an
+// accept loop must end the boot through the same channel as any other server
+// failure — orderly Shutdown, telemetry flush, exit 1 — never a bare crash
+// that loses the last log lines, and never a log-and-continue that leaves a
+// dead listener behind a healthy /health. The goroutine ends here either way.
+func forwardPanic(serverErr chan<- error, what string) {
+	if r := recover(); r != nil {
+		serverErr <- fmt.Errorf("%s panicked: %v", what, r)
+	}
 }
 
 // recoveryUnaryInterceptor converts a panicking handler into codes.Internal.
@@ -466,7 +509,6 @@ func (s *Server) buildRouter(cfg *config.Config, jwtValidator *authjwt.Validator
 
 	return router
 }
-
 
 func (s *Server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	status := HealthStatus{

@@ -111,7 +111,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.44.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/pgvector/pgvector-go v0.3.0
-	github.com/sentiae/platform-kit v0.3.15
+	github.com/sentiae/platform-kit v0.3.23
 	github.com/spiffe/go-spiffe/v2 v2.6.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0
