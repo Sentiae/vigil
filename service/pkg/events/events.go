@@ -17,23 +17,22 @@ type CloudEvent = kafka.CloudEvent
 // Event type constants following the {domain}.{resource}.{action} pattern.
 // The "sentiae." prefix is no longer part of the event type itself; the
 // platform-kit publisher prepends the topic prefix automatically.
+//
+// These are aliases of the platform-kit taxonomy constants, not copies: the
+// taxonomy is the allowlist every publish is validated against, so a local
+// copy that drifts means every publish of that type is rejected at the
+// publisher (#three-event-streams-are-rejected-at-the-publisher).
 const (
-	EventFindingCreated   = "security.finding.created"
-	EventFindingUpdated   = "security.finding.updated"
-	EventFindingResolved  = "security.finding.resolved"
-	EventFindingSLABreach = "security.finding.sla_breach"
-	EventScanStarted      = "security.scan.started"
-	EventScanCompleted    = "security.scan.completed"
-	EventScanFailed       = "security.scan.failed"
-	EventAlertCritical    = "security.alert.critical"
-	EventSecretDetected   = "security.secret.detected"
-	EventAssetDiscovered  = "security.asset.discovered"
-	EventComplianceReport = "security.compliance.report"
-	EventAgentOffline     = "security.agent.offline"
-
-	// DAST events
-	EventDASTVulnFound    = "security.dast.vulnerability_found"
-	EventDASTScanDone     = "security.dast.scan_completed"
-	EventEndpointsFound   = "security.discovery.endpoints_found"
-	EventAttackChainFound = "security.attack_chain.detected"
+	EventFindingCreated   = kafka.EventSecurityFindingCreated
+	EventFindingUpdated   = kafka.EventSecurityFindingUpdated
+	EventFindingResolved  = kafka.EventSecurityFindingResolved
+	EventFindingSLABreach = kafka.EventSecurityFindingSLABreach
+	EventScanStarted      = kafka.EventSecurityScanStarted
+	EventScanCompleted    = kafka.EventSecurityScanCompleted
+	EventScanFailed       = kafka.EventSecurityScanFailed
+	EventAlertCritical    = kafka.EventSecurityAlertCritical
+	EventSecretDetected   = kafka.EventSecuritySecretDetected
+	EventAssetDiscovered  = kafka.EventSecurityAssetDiscovered
+	EventAgentOffline     = kafka.EventSecurityAgentOffline
+	EventAttackChainFound = kafka.EventSecurityAttackChainDetected
 )

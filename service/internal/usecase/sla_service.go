@@ -113,10 +113,11 @@ func (s *SLAService) CheckTenantSLABreaches(ctx context.Context, tenantID uuid.U
 		}
 
 		if s.publisher != nil {
-			_ = s.publisher.Publish(ctx, events.EventFindingSLABreach, events.EventData{
-				ActorType:    "system",
-				ResourceType: "finding",
-				ResourceID:   f.ID.String(),
+			if err := s.publisher.Publish(ctx, events.EventFindingSLABreach, events.EventData{
+				ActorType:      "system",
+				ResourceType:   "finding",
+				ResourceID:     f.ID.String(),
+				OrganizationID: f.TenantID.String(),
 				Metadata: map[string]any{
 					"finding_id":   f.ID.String(),
 					"severity":     string(f.Severity),
@@ -125,7 +126,9 @@ func (s *SLAService) CheckTenantSLABreaches(ctx context.Context, tenantID uuid.U
 					"title":        f.Title,
 				},
 				Timestamp: now,
-			})
+			}); err != nil {
+				logger.Warn(ctx, "Failed to publish SLA breach event", "error", err, "finding_id", f.ID)
+			}
 		}
 
 		logger.Warn(ctx, "SLA breach detected",

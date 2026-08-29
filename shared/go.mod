@@ -2,7 +2,7 @@ module github.com/sentiae/vigil/shared
 
 go 1.25.5
 
-require github.com/sentiae/platform-kit v0.3.15
+require github.com/sentiae/platform-kit v0.3.24
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

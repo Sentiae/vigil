@@ -3,10 +3,10 @@
 // On receiving sentiae.git.push (or an equivalent repo-updated event)
 // we re-run incremental code intelligence for the changed files only:
 //
-//   1. Fetch the list of changed files from git-service.
-//   2. For each changed file, re-parse + update symbol graph deltas.
-//   3. Rewrite the repo's .nodes/ metadata via git-service.
-//   4. Emit sentiae.code.graph.updated for canvas-service.
+//  1. Fetch the list of changed files from git-service.
+//  2. For each changed file, re-parse + update symbol graph deltas.
+//  3. Rewrite the repo's .nodes/ metadata via git-service.
+//  4. Emit sentiae.code.graph.updated for canvas-service.
 //
 // The implementation here is the in-service coordinator — HTTP calls
 // out to git-service do the heavy filesystem work so this service
@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	kafka "github.com/sentiae/platform-kit/kafka"
 
 	"github.com/sentiae/vigil/service/pkg/events"
 )
@@ -212,11 +214,15 @@ func (k *KafkaGraphPublisher) PublishCodeGraphUpdated(ctx context.Context, repoI
 		return nil
 	}
 	data := events.EventData{
+		ActorType:    "system",
+		ResourceType: "repository",
+		ResourceID:   repoID.String(),
 		Metadata: map[string]any{
 			"repository_id": repoID.String(),
 			"commit_sha":    commitSHA,
 			"changed_files": changedFiles,
 		},
+		Timestamp: time.Now().UTC(),
 	}
-	return k.pub.Publish(ctx, "code.graph.updated", data)
+	return k.pub.Publish(ctx, kafka.EventCodeGraphUpdated, data)
 }

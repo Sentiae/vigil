@@ -6,6 +6,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	kafka "github.com/sentiae/platform-kit/kafka"
+
+	"github.com/sentiae/vigil/service/pkg/events"
 )
 
 type fakeFetcher struct {
@@ -85,5 +89,47 @@ func TestHandlePushAllOptionalDeps(t *testing.T) {
 	}
 	if changed != nil {
 		t.Errorf("want nil changed, got %v", changed)
+	}
+}
+
+// capturingPublisher records the exact EventData KafkaGraphPublisher builds so
+// the payload can be validated against the platform-kit taxonomy schema.
+type capturingPublisher struct {
+	eventType string
+	data      events.EventData
+}
+
+func (c *capturingPublisher) Publish(_ context.Context, eventType string, data events.EventData) error {
+	c.eventType = eventType
+	c.data = data
+	return nil
+}
+
+func (c *capturingPublisher) PublishBatch(_ context.Context, _ []kafka.Event) error { return nil }
+func (c *capturingPublisher) EnsureTopics(_ context.Context) error                  { return nil }
+func (c *capturingPublisher) Close() error                                          { return nil }
+
+// TestPublishCodeGraphUpdatedIsEnvelopeComplete is a producer-conformance test:
+// the publisher rejects any payload failing ValidateEventPayload, so a payload
+// missing the envelope fields silently kills the whole code.graph.updated
+// stream. Asserting the real validator here catches that at build time.
+func TestPublishCodeGraphUpdatedIsEnvelopeComplete(t *testing.T) {
+	cap := &capturingPublisher{}
+	repoID := uuid.New()
+
+	err := NewKafkaGraphPublisher(cap).PublishCodeGraphUpdated(
+		context.Background(), repoID, "deadbeef", []string{"a.go"})
+	if err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+
+	if cap.eventType != kafka.EventCodeGraphUpdated {
+		t.Errorf("event type = %q, want %q", cap.eventType, kafka.EventCodeGraphUpdated)
+	}
+	if err := kafka.ValidateEventPayload(kafka.EventCodeGraphUpdated, cap.data); err != nil {
+		t.Fatalf("payload rejected by the taxonomy validator: %v", err)
+	}
+	if cap.data.ResourceID != repoID.String() {
+		t.Errorf("resource_id = %q, want %q", cap.data.ResourceID, repoID.String())
 	}
 }

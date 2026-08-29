@@ -68,11 +68,12 @@ func (s *findingService) ResolveFinding(ctx context.Context, tenantID uuid.UUID,
 		go func() {
 			publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			_ = s.publisher.Publish(publishCtx, events.EventFindingResolved, events.EventData{
-				ActorID:      input.ResolvedBy,
-				ActorType:    "user",
-				ResourceType: "finding",
-				ResourceID:   finding.ID.String(),
+			if err := s.publisher.Publish(publishCtx, events.EventFindingResolved, events.EventData{
+				ActorID:        input.ResolvedBy,
+				ActorType:      "user",
+				ResourceType:   "finding",
+				ResourceID:     finding.ID.String(),
+				OrganizationID: finding.TenantID.String(),
 				Metadata: map[string]any{
 					"finding_id": finding.ID.String(),
 					"old_status": string(oldStatus),
@@ -81,7 +82,9 @@ func (s *findingService) ResolveFinding(ctx context.Context, tenantID uuid.UUID,
 					"note":       input.Note,
 				},
 				Timestamp: time.Now(),
-			})
+			}); err != nil {
+				logger.Warn(publishCtx, "Failed to publish finding resolved event", "error", err, "finding_id", finding.ID)
+			}
 			cancel()
 		}()
 	}
@@ -148,10 +151,11 @@ func (s *findingService) IngestFindings(ctx context.Context, tenantID uuid.UUID,
 			// Verified secret detection gets its own high-priority event
 			if f.AnalysisType == domain.AnalysisTypeSecretDetection {
 				if verified, ok := f.Metadata["verified"].(bool); ok && verified {
-					_ = s.publisher.Publish(ctx, events.EventSecretDetected, events.EventData{
-						ActorType:    "system",
-						ResourceType: "finding",
-						ResourceID:   f.ID.String(),
+					if err := s.publisher.Publish(ctx, events.EventSecretDetected, events.EventData{
+						ActorType:      "system",
+						ResourceType:   "finding",
+						ResourceID:     f.ID.String(),
+						OrganizationID: f.TenantID.String(),
 						Metadata: map[string]any{
 							"finding_id":  f.ID.String(),
 							"secret_type": f.SourceRuleID,
@@ -161,7 +165,9 @@ func (s *findingService) IngestFindings(ctx context.Context, tenantID uuid.UUID,
 							"commit_sha":  f.Location.CommitSHA,
 						},
 						Timestamp: now,
-					})
+					}); err != nil {
+						logger.Warn(ctx, "Failed to publish secret detected event", "error", err, "finding_id", f.ID)
+					}
 				}
 			}
 
@@ -183,13 +189,24 @@ func (s *findingService) IngestFindings(ctx context.Context, tenantID uuid.UUID,
 			if f.CVSSScore != nil {
 				meta["cvss_score"] = *f.CVSSScore
 			}
+			// Enrichment the ops SecuritySpecCreator needs to build a spec
+			// from a critical alert without calling back into vigil.
+			meta["description"] = f.Description
+			meta["remediation"] = f.Remediation
+			meta["repository"] = f.Location.Repository
+			meta["file_path"] = f.Location.FilePath
+			meta["commit_sha"] = f.Location.CommitSHA
+			if f.Location.LineStart != nil {
+				meta["line_start"] = *f.Location.LineStart
+			}
 
 			if err := s.publisher.Publish(ctx, eventType, events.EventData{
-				ActorType:    "system",
-				ResourceType: "finding",
-				ResourceID:   f.ID.String(),
-				Metadata:     meta,
-				Timestamp:    now,
+				ActorType:      "system",
+				ResourceType:   "finding",
+				ResourceID:     f.ID.String(),
+				OrganizationID: f.TenantID.String(),
+				Metadata:       meta,
+				Timestamp:      now,
 			}); err != nil {
 				logger.Warn(ctx, "Failed to publish finding event", "error", err)
 			}

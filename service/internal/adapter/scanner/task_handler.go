@@ -10,9 +10,9 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/sentiae/vigil/service/internal/domain"
+	"github.com/sentiae/vigil/service/internal/port/repository"
 	portscanner "github.com/sentiae/vigil/service/internal/port/scanner"
 	portuc "github.com/sentiae/vigil/service/internal/port/usecase"
-	"github.com/sentiae/vigil/service/internal/port/repository"
 	"github.com/sentiae/vigil/service/pkg/events"
 	"github.com/sentiae/vigil/service/pkg/logger"
 	"github.com/sentiae/vigil/service/pkg/telemetry"
@@ -32,10 +32,10 @@ type ScanTaskPayload struct {
 
 // TaskHandler handles asynq scan tasks by running the appropriate scanners.
 type TaskHandler struct {
-	registry    *Registry
-	findingUC   portuc.FindingUseCase
-	scanRepo    repository.ScanRepository
-	publisher   events.Publisher
+	registry  *Registry
+	findingUC portuc.FindingUseCase
+	scanRepo  repository.ScanRepository
+	publisher events.Publisher
 }
 
 // NewTaskHandler creates a new scan task handler.
@@ -155,7 +155,7 @@ func (h *TaskHandler) HandleScanTask(scanType domain.ScanType) asynq.HandlerFunc
 
 		// Publish completion event
 		if h.publisher != nil {
-			_ = h.publisher.Publish(ctx, events.EventScanCompleted, events.EventData{
+			if err := h.publisher.Publish(ctx, events.EventScanCompleted, events.EventData{
 				ActorType:    "system",
 				ResourceType: "scan",
 				ResourceID:   scanID.String(),
@@ -168,7 +168,9 @@ func (h *TaskHandler) HandleScanTask(scanType domain.ScanType) asynq.HandlerFunc
 					"duration_ms":    scan.DurationMs,
 				},
 				Timestamp: time.Now(),
-			})
+			}); err != nil {
+				logger.Warn(ctx, "Failed to publish scan completed event", "error", err, "scan_id", scanID)
+			}
 		}
 
 		logger.Info(ctx, "Scan completed",
@@ -198,7 +200,7 @@ func (h *TaskHandler) publishScanFailed(ctx context.Context, scan *domain.Scan, 
 	if h.publisher == nil {
 		return
 	}
-	_ = h.publisher.Publish(ctx, events.EventScanFailed, events.EventData{
+	if err := h.publisher.Publish(ctx, events.EventScanFailed, events.EventData{
 		ActorType:    "system",
 		ResourceType: "scan",
 		ResourceID:   scan.ID.String(),
@@ -209,5 +211,7 @@ func (h *TaskHandler) publishScanFailed(ctx context.Context, scan *domain.Scan, 
 			"error":     scanErr.Error(),
 		},
 		Timestamp: time.Now(),
-	})
+	}); err != nil {
+		logger.Warn(ctx, "Failed to publish scan failed event", "error", err, "scan_id", scan.ID)
+	}
 }
