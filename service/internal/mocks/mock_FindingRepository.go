@@ -208,6 +208,63 @@ func (_c *MockFindingRepository_CountBySeverity_Call) RunAndReturn(run func(cont
 	return _c
 }
 
+// CountSLABreached provides a mock function with given fields: ctx, tenantID
+func (_m *MockFindingRepository) CountSLABreached(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	ret := _m.Called(ctx, tenantID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CountSLABreached")
+	}
+
+	var r0 int
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (int, error)); ok {
+		return rf(ctx, tenantID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) int); ok {
+		r0 = rf(ctx, tenantID)
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, tenantID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFindingRepository_CountSLABreached_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CountSLABreached'
+type MockFindingRepository_CountSLABreached_Call struct {
+	*mock.Call
+}
+
+// CountSLABreached is a helper method to define mock.On call
+//   - ctx context.Context
+//   - tenantID uuid.UUID
+func (_e *MockFindingRepository_Expecter) CountSLABreached(ctx interface{}, tenantID interface{}) *MockFindingRepository_CountSLABreached_Call {
+	return &MockFindingRepository_CountSLABreached_Call{Call: _e.mock.On("CountSLABreached", ctx, tenantID)}
+}
+
+func (_c *MockFindingRepository_CountSLABreached_Call) Run(run func(ctx context.Context, tenantID uuid.UUID)) *MockFindingRepository_CountSLABreached_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockFindingRepository_CountSLABreached_Call) Return(_a0 int, _a1 error) *MockFindingRepository_CountSLABreached_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFindingRepository_CountSLABreached_Call) RunAndReturn(run func(context.Context, uuid.UUID) (int, error)) *MockFindingRepository_CountSLABreached_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Create provides a mock function with given fields: ctx, finding
 func (_m *MockFindingRepository) Create(ctx context.Context, finding *domain.Finding) error {
 	ret := _m.Called(ctx, finding)
@@ -554,65 +611,6 @@ func (_c *MockFindingRepository_ListAllSLABreached_Call) Return(_a0 []*domain.Fi
 }
 
 func (_c *MockFindingRepository_ListAllSLABreached_Call) RunAndReturn(run func(context.Context, int) ([]*domain.Finding, error)) *MockFindingRepository_ListAllSLABreached_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ListSLABreached provides a mock function with given fields: ctx, tenantID
-func (_m *MockFindingRepository) ListSLABreached(ctx context.Context, tenantID uuid.UUID) ([]*domain.Finding, error) {
-	ret := _m.Called(ctx, tenantID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ListSLABreached")
-	}
-
-	var r0 []*domain.Finding
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]*domain.Finding, error)); ok {
-		return rf(ctx, tenantID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []*domain.Finding); ok {
-		r0 = rf(ctx, tenantID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*domain.Finding)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
-		r1 = rf(ctx, tenantID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockFindingRepository_ListSLABreached_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListSLABreached'
-type MockFindingRepository_ListSLABreached_Call struct {
-	*mock.Call
-}
-
-// ListSLABreached is a helper method to define mock.On call
-//   - ctx context.Context
-//   - tenantID uuid.UUID
-func (_e *MockFindingRepository_Expecter) ListSLABreached(ctx interface{}, tenantID interface{}) *MockFindingRepository_ListSLABreached_Call {
-	return &MockFindingRepository_ListSLABreached_Call{Call: _e.mock.On("ListSLABreached", ctx, tenantID)}
-}
-
-func (_c *MockFindingRepository_ListSLABreached_Call) Run(run func(ctx context.Context, tenantID uuid.UUID)) *MockFindingRepository_ListSLABreached_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(uuid.UUID))
-	})
-	return _c
-}
-
-func (_c *MockFindingRepository_ListSLABreached_Call) Return(_a0 []*domain.Finding, _a1 error) *MockFindingRepository_ListSLABreached_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockFindingRepository_ListSLABreached_Call) RunAndReturn(run func(context.Context, uuid.UUID) ([]*domain.Finding, error)) *MockFindingRepository_ListSLABreached_Call {
 	_c.Call.Return(run)
 	return _c
 }

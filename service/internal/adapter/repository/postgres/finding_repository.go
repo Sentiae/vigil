@@ -315,35 +315,22 @@ func (r *findingRepository) UpdateStatus(ctx context.Context, tenantID, id uuid.
 	return nil
 }
 
-func (r *findingRepository) ListSLABreached(ctx context.Context, tenantID uuid.UUID) ([]*domain.Finding, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT id, tenant_id, fingerprint, correlation_id,
-			title, description, severity, normalized_score, status, analysis_type, category,
-			source_scanner, source_rule_id, found_by,
-			cves, cwes, cvss_score, cvss_vector, epss_score,
-			location, remediation, "references", compliance_mappings,
-			first_seen_at, last_seen_at, sla_deadline, vex_state,
-			metadata, tags
+// CountSLABreached counts the tenant's open, overdue findings with the same
+// predicate ClaimSLABreaches uses for eligibility, without touching the breach
+// marker.
+func (r *findingRepository) CountSLABreached(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	var n int
+	if err := r.pool.QueryRow(ctx, `
+		SELECT count(*)
 		FROM findings
 		WHERE tenant_id = $1
 			AND sla_deadline IS NOT NULL
 			AND sla_deadline < NOW()
-			AND status NOT IN ('resolved', 'false_positive', 'risk_accepted')
-		ORDER BY sla_deadline ASC`, tenantID)
-	if err != nil {
-		return nil, err
+			AND status NOT IN ('resolved', 'false_positive', 'risk_accepted')`, tenantID,
+	).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count sla breaches: %w", err)
 	}
-	defer rows.Close()
-
-	var findings []*domain.Finding
-	for rows.Next() {
-		f, err := scanFindingFromRows(rows)
-		if err != nil {
-			return nil, err
-		}
-		findings = append(findings, f)
-	}
-	return findings, nil
+	return n, nil
 }
 
 // ClaimSLABreaches atomically marks the tenant's newly breached findings as

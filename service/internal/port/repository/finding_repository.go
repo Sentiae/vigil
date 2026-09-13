@@ -29,7 +29,9 @@ type FindingRepository interface {
 	BulkUpsert(ctx context.Context, findings []*domain.Finding) (created int, updated int, err error)
 	CountBySeverity(ctx context.Context, tenantID uuid.UUID) (map[domain.Severity]int, error)
 	UpdateStatus(ctx context.Context, tenantID, id uuid.UUID, status domain.FindingStatus) error
-	ListSLABreached(ctx context.Context, tenantID uuid.UUID) ([]*domain.Finding, error)
+	// CountSLABreached counts the tenant's open findings whose SLA deadline has
+	// passed. Read-only: it never claims or consumes a breach transition.
+	CountSLABreached(ctx context.Context, tenantID uuid.UUID) (int, error)
 	// ClaimSLABreaches marks every open finding of tenantID whose SLA deadline
 	// has passed and whose breach has not yet been emitted for that deadline as
 	// emitted, and returns exactly those findings. Called inside a transaction,

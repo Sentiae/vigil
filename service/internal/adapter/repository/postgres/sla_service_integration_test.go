@@ -485,3 +485,49 @@ func TestSLAScan_KafkaDisabled_RetainsBreachForLaterRelay(t *testing.T) {
 		t.Fatalf("relay published %v %+v, want one %s for finding %s", types, sent, events.EventFindingSLABreach, findingID)
 	}
 }
+
+// TestCountSLABreached_ReadOnlySamePredicate: the compliance count uses the
+// claim's eligibility predicate (tenant, passed deadline, open status), counts
+// overdue findings whether or not their breach was already emitted, and never
+// writes a breach marker.
+func TestCountSLABreached_ReadOnlySamePredicate(t *testing.T) {
+	pool := newMigratedPool(t)
+	tenantA, tenantB := uuid.New(), uuid.New()
+	past := time.Now().Add(-48 * time.Hour).UTC()
+	future := time.Now().Add(48 * time.Hour).UTC()
+
+	seedOverdue(t, pool, tenantA, 3)
+	insertFinding(t, pool, tenantA, &past, "resolved")
+	insertFinding(t, pool, tenantA, &past, "false_positive")
+	insertFinding(t, pool, tenantA, &past, "risk_accepted")
+	insertFinding(t, pool, tenantA, &future, "new")
+	insertFinding(t, pool, tenantA, nil, "new")
+	seedOverdue(t, pool, tenantB, 2)
+
+	repo := NewFindingRepository(pool)
+	count := func() int {
+		t.Helper()
+		n, err := repo.CountSLABreached(context.Background(), tenantA)
+		if err != nil {
+			t.Fatalf("CountSLABreached: %v", err)
+		}
+		return n
+	}
+
+	if got := count(); got != 3 {
+		t.Errorf("count before claim = %d, want 3", got)
+	}
+	if got := countMarked(t, pool, tenantA); got != 0 {
+		t.Errorf("markers after counting = %d, want 0 (count must be read-only)", got)
+	}
+	if got := countOutbox(t, pool); got != 0 {
+		t.Errorf("outbox rows after counting = %d, want 0", got)
+	}
+
+	if got := scan(t, newSLAService(pool), tenantA); got != 3 {
+		t.Fatalf("claimed %d, want 3", got)
+	}
+	if got := count(); got != 3 {
+		t.Errorf("count after claim = %d, want 3 (emitted breaches are still breaches)", got)
+	}
+}

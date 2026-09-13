@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -97,8 +98,10 @@ func (s *complianceService) GetComplianceSummary(ctx context.Context, tenantID u
 		overallScore = totalPassRate / float64(activeFrameworks)
 	}
 
-	// Count SLA breaches
-	breached, _ := s.findingRepo.ListSLABreached(ctx, tenantID)
+	slaBreaches, err := s.findingRepo.CountSLABreached(ctx, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("count sla breaches: %w", err)
+	}
 
 	return &domain.ComplianceSummary{
 		OrganizationID: tenantID,
@@ -106,7 +109,7 @@ func (s *complianceService) GetComplianceSummary(ctx context.Context, tenantID u
 		Frameworks:     frameworkResults,
 		CriticalCount:  counts[domain.SeverityCritical],
 		HighCount:      counts[domain.SeverityHigh],
-		SLABreaches:    len(breached),
+		SLABreaches:    slaBreaches,
 		GeneratedAt:    time.Now(),
 	}, nil
 }
