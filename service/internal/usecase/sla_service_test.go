@@ -217,3 +217,52 @@ func TestSLAService_FailedTenantTransaction(t *testing.T) {
 		})
 	}
 }
+
+// TestSLAService_NegativeAppClockDaysOverdueStillEmits: once Postgres NOW()
+// has admitted and claimed a breach, the event is appended and counted even
+// when the application clock lags so far behind that days_overdue is negative.
+// That metadata must never veto the event — skipping it would commit the
+// breach marker without the event it stands for.
+func TestSLAService_NegativeAppClockDaysOverdueStillEmits(t *testing.T) {
+	logs := captureLogs(t)
+	tenant := uuid.New()
+	appNow := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
+	deadline := appNow.Add(72 * time.Hour) // app clock 3 days behind the database
+	claimed := &domain.Finding{
+		ID: uuid.New(), TenantID: tenant, Severity: domain.SeverityCritical,
+		Title: "skewed", SLADeadline: &deadline,
+	}
+
+	repo := mocks.NewMockFindingRepository(t)
+	repo.EXPECT().ListActiveTenantIDs(mock.Anything).Return([]uuid.UUID{tenant}, nil)
+	repo.EXPECT().ClaimSLABreaches(mock.Anything, tenant).Return([]*domain.Finding{claimed}, nil).Once()
+
+	var appended []*repository.OutboxEvent
+	outbox := mocks.NewMockOutboxRepository(t)
+	outbox.EXPECT().Append(mock.Anything, mock.Anything).
+		RunAndReturn(func(_ context.Context, e *repository.OutboxEvent) error {
+			appended = append(appended, e)
+			return nil
+		})
+
+	svc := NewSLAService(repo, passThroughTx(t), outbox, fixedClock{t: appNow})
+	before := promtestutil.ToFloat64(telemetry.SLABreachesTotal)
+	svc.checkBreaches(context.Background())
+
+	if d := promtestutil.ToFloat64(telemetry.SLABreachesTotal) - before; d != 1 {
+		t.Errorf("counter delta = %v, want 1 (the claimed transition committed)", d)
+	}
+	if len(appended) != 1 {
+		t.Fatalf("appended %d outbox events, want 1", len(appended))
+	}
+	var data events.EventData
+	if err := json.Unmarshal(appended[0].Payload, &data); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if data.ResourceID != claimed.ID.String() || data.Metadata["days_overdue"] != float64(-3) {
+		t.Errorf("payload = %+v, want finding %s with days_overdue -3", data, claimed.ID)
+	}
+	if w := len(logs.warnings()); w != 1 {
+		t.Errorf("warnings = %d, want 1 aggregate warning", w)
+	}
+}

@@ -208,16 +208,18 @@ func TestSLAScan_TenThousandOverdue_TwoScans(t *testing.T) {
 
 // TestSLAScan_AfterMigration007Backfill: a finding already open and overdue when
 // 007 ships is NOT re-emitted; a finding that becomes overdue after 007, or
-// whose deadline changes, is emitted exactly once.
+// whose deadline changes, is emitted exactly once. Deterministic: the not-yet-due
+// row is proven unclaimed, then its deadline is moved into the past — no
+// wall-clock wait.
 func TestSLAScan_AfterMigration007Backfill(t *testing.T) {
 	pool := startPostgres(t)
 	applyMigrationsThrough(t, pool, "006_security_gate_policy.sql")
 
 	tenant := uuid.New()
 	past := time.Now().Add(-48 * time.Hour).UTC()
-	soon := time.Now().Add(2 * time.Second).UTC()
+	future := time.Now().Add(48 * time.Hour).UTC()
 	alreadyOverdue := insertFinding(t, pool, tenant, &past, "new")
-	becomesOverdue := insertFinding(t, pool, tenant, &soon, "new")
+	becomesOverdue := insertFinding(t, pool, tenant, &future, "new")
 
 	if err := migrate.Apply(context.Background(), pool); err != nil {
 		t.Fatalf("migrate.Apply (007): %v", err)
@@ -231,7 +233,15 @@ func TestSLAScan_AfterMigration007Backfill(t *testing.T) {
 		t.Fatalf("outbox rows after first scan = %d, want 0", got)
 	}
 
-	time.Sleep(time.Until(soon) + 500*time.Millisecond)
+	if got := emittedDeadline(t, pool, becomesOverdue); got != nil {
+		t.Fatalf("not-yet-due finding marked emitted (%v) before its deadline passed", *got)
+	}
+
+	if _, err := pool.Exec(context.Background(),
+		`UPDATE findings SET sla_deadline = now() - interval '1 minute' WHERE id = $1`, becomesOverdue,
+	); err != nil {
+		t.Fatalf("move deadline into the past: %v", err)
+	}
 	if got := scan(t, svc, tenant); got != 1 {
 		t.Errorf("scan after the deadline passed claimed %d, want 1", got)
 	}
