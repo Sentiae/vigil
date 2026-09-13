@@ -4,64 +4,24 @@ package postgres
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	pgvector "github.com/pgvector/pgvector-go"
 
 	"github.com/sentiae/vigil/service/internal/usecase"
 )
 
 // TestEmbeddingRepository_PgVectorSearch exercises the real pgvector
-// path end-to-end: it runs the service's own migrations (003 + 004)
-// against a throwaway test database, inserts three 1536-dimensional
-// embeddings with one clearly closer to the query vector, and asserts
+// path end-to-end: a throwaway pgvector Postgres with vigil's own embedded
+// migrations applied by the boot-time runner, three 1536-dimensional
+// embeddings with one clearly closer to the query vector, and an assertion
 // that the top hit is the expected one.
-//
-// Skipped when the environment lacks Postgres + pgvector. In CI we rely
-// on the compose-backed Postgres 16 image with the pgvector extension
-// enabled via infrastructure/docker/init-databases.sql.
 func TestEmbeddingRepository_PgVectorSearch(t *testing.T) {
-	dsn := os.Getenv("TEST_POSTGRES_DSN")
-	if dsn == "" {
-		dsn = "host=localhost port=5432 user=postgres password=postgres dbname=code_analysis_service_test sslmode=disable"
-	}
+	pool := newMigratedPool(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	pool, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		t.Skipf("pgxpool.New failed (set TEST_POSTGRES_DSN for a reachable cluster): %v", err)
-	}
-	defer pool.Close()
-
-	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("Postgres unreachable: %v", err)
-	}
-
-	// pgvector extension must exist for the 004 migration; attempt
-	// creation and skip gracefully if the cluster lacks the lib.
-	if _, err := pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS vector"); err != nil {
-		t.Skipf("pgvector extension not installable on this cluster: %v", err)
-	}
-
-	// Ensure we are on a clean schema for this test. The repo is pgx-
-	// backed and does not own migrations, so we copy the SQL in directly.
-	if _, err := pool.Exec(ctx, "DROP TABLE IF EXISTS code_embeddings CASCADE"); err != nil {
-		t.Fatalf("drop table: %v", err)
-	}
-	if err := applyMigration(ctx, pool, findMigration(t, "003_code_intelligence.sql")); err != nil {
-		t.Fatalf("apply 003: %v", err)
-	}
-	if err := applyMigration(ctx, pool, findMigration(t, "004_pgvector.sql")); err != nil {
-		t.Fatalf("apply 004: %v", err)
-	}
 
 	repo := NewEmbeddingRepository(pool).(*embeddingRepository)
 	tenantID, repoID := uuid.New(), uuid.New()
@@ -157,35 +117,6 @@ func TestEmbeddingRepository_PgVectorSearch(t *testing.T) {
 	if got := len(raw.Slice()); got != 1536 {
 		t.Errorf("embedding dimension = %d, want 1536", got)
 	}
-}
-
-// applyMigration runs the SQL from path against pool. Splits on top-
-// level semicolons is not needed because pgx's Exec can handle the
-// whole file when sent as a single simple query.
-func applyMigration(ctx context.Context, pool *pgxpool.Pool, path string) error {
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", path, err)
-	}
-	if _, err := pool.Exec(ctx, string(body)); err != nil {
-		return fmt.Errorf("exec %s: %w", path, err)
-	}
-	return nil
-}
-
-// findMigration resolves the migrations directory relative to this
-// test file so the test runs from any working directory (go test
-// ./... changes CWD per-package).
-func findMigration(t *testing.T, name string) string {
-	t.Helper()
-	_, thisFile, _, _ := runtime.Caller(0)
-	// vigil-service/internal/adapter/repository/postgres/<this file>
-	root := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "migrations", name)
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		t.Fatalf("abs migration path: %v", err)
-	}
-	return abs
 }
 
 // unitVector returns a 1536-dim unit vector with 1.0 at index idx.
