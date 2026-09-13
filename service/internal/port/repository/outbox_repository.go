@@ -16,9 +16,25 @@ type OutboxEvent struct {
 	DeliveredAt *time.Time `json:"delivered_at,omitempty"`
 }
 
-// OutboxRepository defines the data access interface for the transactional outbox.
+// TransactionManager runs fn inside one database transaction carried on txCtx.
+// Every repository and outbox call made with txCtx joins that transaction, so a
+// state change and the event announcing it commit or roll back together
+// (CLAUDE.md §19).
+type TransactionManager interface {
+	WithTransaction(ctx context.Context, fn func(txCtx context.Context) error) error
+}
+
+// OutboxWriter appends an event to the transactional outbox. Called with a
+// transaction context, the row commits only if that transaction does; the
+// outbox relay publishes it afterwards.
+type OutboxWriter interface {
+	Append(ctx context.Context, event *OutboxEvent) error
+}
+
+// OutboxRepository defines the data access interface for the transactional
+// outbox: the writer side plus the relay's read/ack side.
 type OutboxRepository interface {
-	Insert(ctx context.Context, event *OutboxEvent) error
+	OutboxWriter
 	ListUndelivered(ctx context.Context, limit int) ([]*OutboxEvent, error)
 	MarkDelivered(ctx context.Context, id uuid.UUID) error
 }

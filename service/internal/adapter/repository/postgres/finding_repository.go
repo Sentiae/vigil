@@ -346,6 +346,48 @@ func (r *findingRepository) ListSLABreached(ctx context.Context, tenantID uuid.U
 	return findings, nil
 }
 
+// ClaimSLABreaches atomically marks the tenant's newly breached findings as
+// emitted for their current deadline and returns them. The guard
+// `sla_breach_emitted_deadline IS DISTINCT FROM sla_deadline` makes the claim
+// exactly-once per (finding, deadline): a concurrent claimer blocks on the row
+// lock, re-evaluates the guard after the first commits, and skips the row. The
+// explicit tenant predicate is the isolation boundary today — vigil connects as
+// a role that bypasses RLS (a named D-490 exception).
+func (r *findingRepository) ClaimSLABreaches(ctx context.Context, tenantID uuid.UUID) ([]*domain.Finding, error) {
+	rows, err := dbFrom(ctx, r.pool).Query(ctx, `
+		UPDATE findings
+		SET sla_breach_emitted_deadline = sla_deadline
+		WHERE tenant_id = $1
+			AND sla_deadline IS NOT NULL
+			AND sla_deadline < NOW()
+			AND status NOT IN ('resolved', 'false_positive', 'risk_accepted')
+			AND sla_breach_emitted_deadline IS DISTINCT FROM sla_deadline
+		RETURNING id, tenant_id, fingerprint, correlation_id,
+			title, description, severity, normalized_score, status, analysis_type, category,
+			source_scanner, source_rule_id, found_by,
+			cves, cwes, cvss_score, cvss_vector, epss_score,
+			location, remediation, "references", compliance_mappings,
+			first_seen_at, last_seen_at, sla_deadline, vex_state,
+			metadata, tags`, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("claim sla breaches: %w", err)
+	}
+	defer rows.Close()
+
+	var findings []*domain.Finding
+	for rows.Next() {
+		f, err := scanFindingFromRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		findings = append(findings, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("claim sla breaches: %w", err)
+	}
+	return findings, nil
+}
+
 func (r *findingRepository) ListAllSLABreached(ctx context.Context, limit int) ([]*domain.Finding, error) {
 	if limit <= 0 {
 		limit = 1000

@@ -24,12 +24,12 @@ func (_m *MockOutboxRepository) EXPECT() *MockOutboxRepository_Expecter {
 	return &MockOutboxRepository_Expecter{mock: &_m.Mock}
 }
 
-// Insert provides a mock function with given fields: ctx, event
-func (_m *MockOutboxRepository) Insert(ctx context.Context, event *repository.OutboxEvent) error {
+// Append provides a mock function with given fields: ctx, event
+func (_m *MockOutboxRepository) Append(ctx context.Context, event *repository.OutboxEvent) error {
 	ret := _m.Called(ctx, event)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Insert")
+		panic("no return value specified for Append")
 	}
 
 	var r0 error
@@ -42,31 +42,31 @@ func (_m *MockOutboxRepository) Insert(ctx context.Context, event *repository.Ou
 	return r0
 }
 
-// MockOutboxRepository_Insert_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Insert'
-type MockOutboxRepository_Insert_Call struct {
+// MockOutboxRepository_Append_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Append'
+type MockOutboxRepository_Append_Call struct {
 	*mock.Call
 }
 
-// Insert is a helper method to define mock.On call
+// Append is a helper method to define mock.On call
 //   - ctx context.Context
 //   - event *repository.OutboxEvent
-func (_e *MockOutboxRepository_Expecter) Insert(ctx interface{}, event interface{}) *MockOutboxRepository_Insert_Call {
-	return &MockOutboxRepository_Insert_Call{Call: _e.mock.On("Insert", ctx, event)}
+func (_e *MockOutboxRepository_Expecter) Append(ctx interface{}, event interface{}) *MockOutboxRepository_Append_Call {
+	return &MockOutboxRepository_Append_Call{Call: _e.mock.On("Append", ctx, event)}
 }
 
-func (_c *MockOutboxRepository_Insert_Call) Run(run func(ctx context.Context, event *repository.OutboxEvent)) *MockOutboxRepository_Insert_Call {
+func (_c *MockOutboxRepository_Append_Call) Run(run func(ctx context.Context, event *repository.OutboxEvent)) *MockOutboxRepository_Append_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].(*repository.OutboxEvent))
 	})
 	return _c
 }
 
-func (_c *MockOutboxRepository_Insert_Call) Return(_a0 error) *MockOutboxRepository_Insert_Call {
+func (_c *MockOutboxRepository_Append_Call) Return(_a0 error) *MockOutboxRepository_Append_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockOutboxRepository_Insert_Call) RunAndReturn(run func(context.Context, *repository.OutboxEvent) error) *MockOutboxRepository_Insert_Call {
+func (_c *MockOutboxRepository_Append_Call) RunAndReturn(run func(context.Context, *repository.OutboxEvent) error) *MockOutboxRepository_Append_Call {
 	_c.Call.Return(run)
 	return _c
 }

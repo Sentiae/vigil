@@ -90,6 +90,65 @@ func (_c *MockFindingRepository_BulkUpsert_Call) RunAndReturn(run func(context.C
 	return _c
 }
 
+// ClaimSLABreaches provides a mock function with given fields: ctx, tenantID
+func (_m *MockFindingRepository) ClaimSLABreaches(ctx context.Context, tenantID uuid.UUID) ([]*domain.Finding, error) {
+	ret := _m.Called(ctx, tenantID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClaimSLABreaches")
+	}
+
+	var r0 []*domain.Finding
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) ([]*domain.Finding, error)); ok {
+		return rf(ctx, tenantID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) []*domain.Finding); ok {
+		r0 = rf(ctx, tenantID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*domain.Finding)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
+		r1 = rf(ctx, tenantID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockFindingRepository_ClaimSLABreaches_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClaimSLABreaches'
+type MockFindingRepository_ClaimSLABreaches_Call struct {
+	*mock.Call
+}
+
+// ClaimSLABreaches is a helper method to define mock.On call
+//   - ctx context.Context
+//   - tenantID uuid.UUID
+func (_e *MockFindingRepository_Expecter) ClaimSLABreaches(ctx interface{}, tenantID interface{}) *MockFindingRepository_ClaimSLABreaches_Call {
+	return &MockFindingRepository_ClaimSLABreaches_Call{Call: _e.mock.On("ClaimSLABreaches", ctx, tenantID)}
+}
+
+func (_c *MockFindingRepository_ClaimSLABreaches_Call) Run(run func(ctx context.Context, tenantID uuid.UUID)) *MockFindingRepository_ClaimSLABreaches_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockFindingRepository_ClaimSLABreaches_Call) Return(_a0 []*domain.Finding, _a1 error) *MockFindingRepository_ClaimSLABreaches_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockFindingRepository_ClaimSLABreaches_Call) RunAndReturn(run func(context.Context, uuid.UUID) ([]*domain.Finding, error)) *MockFindingRepository_ClaimSLABreaches_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CountBySeverity provides a mock function with given fields: ctx, tenantID
 func (_m *MockFindingRepository) CountBySeverity(ctx context.Context, tenantID uuid.UUID) (map[domain.Severity]int, error) {
 	ret := _m.Called(ctx, tenantID)

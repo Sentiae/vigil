@@ -8,6 +8,7 @@ packages:
       ScanRepository:
       AssetRepository:
       OutboxRepository:
+      TransactionManager:
       AnalyticsRepository:
       GraphRepository:
       GatePolicyRepository:

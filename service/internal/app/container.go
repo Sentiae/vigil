@@ -72,6 +72,7 @@ type Container struct {
 	scanRepo       repository.ScanRepository
 	assetRepo      repository.AssetRepository
 	outboxRepo     repository.OutboxRepository
+	txManager      repository.TransactionManager
 	analyticsRepo  repository.AnalyticsRepository
 	graphRepo      repository.GraphRepository
 	gatePolicyRepo repository.GatePolicyRepository
@@ -198,6 +199,7 @@ func (c *Container) setupRepositories() {
 	c.scanRepo = postgres.NewScanRepository(c.cfg.DB)
 	c.assetRepo = postgres.NewAssetRepository(c.cfg.DB)
 	c.outboxRepo = postgres.NewOutboxRepository(c.cfg.DB)
+	c.txManager = postgres.NewTxManager(c.cfg.DB)
 	c.gatePolicyRepo = postgres.NewGatePolicyRepository(c.cfg.DB)
 	if c.clickhouseDB != nil {
 		c.analyticsRepo = chrepo.NewAnalyticsRepository(c.clickhouseDB)
@@ -211,7 +213,9 @@ func (c *Container) setupRepositories() {
 func (c *Container) setupServices() {
 	c.scoringService = usecase.NewScoringService(c.findingRepo, c.assetRepo)
 	c.policyService = usecase.NewPolicyService()
-	c.slaService = usecase.NewSLAService(c.findingRepo, c.eventPublisher)
+	// The SLA producer always writes through the outbox, Kafka or not: a
+	// claimed breach is durable state; only its relay depends on a publisher.
+	c.slaService = usecase.NewSLAService(c.findingRepo, c.txManager, c.outboxRepo, usecase.NewSystemClock())
 	// Phase 8: prefer Postgres-backed coverage storage. Falls back to
 	// the in-memory service if the DB pool isn't available (tests).
 	if c.cfg.DB != nil {

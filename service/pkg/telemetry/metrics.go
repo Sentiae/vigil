@@ -45,7 +45,7 @@ var (
 	SLABreachesTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "vigil",
 		Name:      "sla_breaches_total",
-		Help:      "Total SLA deadline breaches detected",
+		Help:      "Total newly claimed SLA breach transitions",
 	})
 
 	// Scoring metrics

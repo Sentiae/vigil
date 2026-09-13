@@ -30,6 +30,12 @@ type FindingRepository interface {
 	CountBySeverity(ctx context.Context, tenantID uuid.UUID) (map[domain.Severity]int, error)
 	UpdateStatus(ctx context.Context, tenantID, id uuid.UUID, status domain.FindingStatus) error
 	ListSLABreached(ctx context.Context, tenantID uuid.UUID) ([]*domain.Finding, error)
+	// ClaimSLABreaches marks every open finding of tenantID whose SLA deadline
+	// has passed and whose breach has not yet been emitted for that deadline as
+	// emitted, and returns exactly those findings. Called inside a transaction,
+	// the claim commits only together with the caller's outbox rows; a finding
+	// whose deadline later changes is claimable again.
+	ClaimSLABreaches(ctx context.Context, tenantID uuid.UUID) ([]*domain.Finding, error)
 	ListAllSLABreached(ctx context.Context, limit int) ([]*domain.Finding, error)
 	ListActiveTenantIDs(ctx context.Context) ([]uuid.UUID, error)
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/sentiae/vigil/service/internal/port/repository"
@@ -20,17 +19,21 @@ func NewOutboxRepository(pool *pgxpool.Pool) repository.OutboxRepository {
 	return &outboxRepository{pool: pool}
 }
 
-func (r *outboxRepository) Insert(ctx context.Context, event *repository.OutboxEvent) error {
+// Append inserts the event into the outbox, joining the transaction carried on
+// ctx when there is one.
+func (r *outboxRepository) Append(ctx context.Context, event *repository.OutboxEvent) error {
 	if event.ID == uuid.Nil {
 		event.ID = uuid.New()
 	}
 
-	_, err := r.pool.Exec(ctx, `
+	if _, err := dbFrom(ctx, r.pool).Exec(ctx, `
 		INSERT INTO outbox_events (id, event_type, payload, created_at)
 		VALUES ($1, $2, $3, $4)`,
 		event.ID, event.EventType, event.Payload, event.CreatedAt,
-	)
-	return err
+	); err != nil {
+		return fmt.Errorf("append outbox event: %w", err)
+	}
+	return nil
 }
 
 func (r *outboxRepository) ListUndelivered(ctx context.Context, limit int) ([]*repository.OutboxEvent, error) {
@@ -68,23 +71,6 @@ func (r *outboxRepository) MarkDelivered(ctx context.Context, id uuid.UUID) erro
 	}
 	if tag.RowsAffected() == 0 {
 		return errors.New("outbox event not found or already delivered")
-	}
-	return nil
-}
-
-// InsertInTx inserts an outbox event within an existing pgx transaction.
-func InsertOutboxInTx(ctx context.Context, tx pgx.Tx, event *repository.OutboxEvent) error {
-	if event.ID == uuid.Nil {
-		event.ID = uuid.New()
-	}
-
-	_, err := tx.Exec(ctx, `
-		INSERT INTO outbox_events (id, event_type, payload, created_at)
-		VALUES ($1, $2, $3, $4)`,
-		event.ID, event.EventType, event.Payload, event.CreatedAt,
-	)
-	if err != nil {
-		return fmt.Errorf("insert outbox event in tx: %w", err)
 	}
 	return nil
 }

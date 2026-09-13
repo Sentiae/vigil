@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -14,21 +16,31 @@ import (
 	"github.com/sentiae/vigil/service/pkg/telemetry"
 )
 
-// SLAService monitors findings for SLA deadline breaches and publishes events.
+// SLAService turns SLA deadline breaches into transitions. Each (finding,
+// deadline) breach is claimed once and its event appended to the transactional
+// outbox in the same transaction; the outbox relay publishes and retries. An
+// unchanged overdue finding is not re-emitted by later scans; a changed deadline
+// is a new transition.
 type SLAService struct {
 	findingRepo repository.FindingRepository
-	publisher   events.Publisher
+	txManager   repository.TransactionManager
+	outbox      repository.OutboxWriter
+	clock       Clock
 	stopOnce    sync.Once
 	stopCh      chan struct{}
 }
 
 func NewSLAService(
 	findingRepo repository.FindingRepository,
-	publisher events.Publisher,
+	txManager repository.TransactionManager,
+	outbox repository.OutboxWriter,
+	clock Clock,
 ) *SLAService {
 	return &SLAService{
 		findingRepo: findingRepo,
-		publisher:   publisher,
+		txManager:   txManager,
+		outbox:      outbox,
+		clock:       clock,
 		stopCh:      make(chan struct{}),
 	}
 }
@@ -72,73 +84,82 @@ func (s *SLAService) checkBreaches(ctx context.Context) {
 		return
 	}
 
-	totalBreached := 0
+	newTransitions := 0
 	for _, tenantID := range tenantIDs {
 		count, err := s.CheckTenantSLABreaches(ctx, tenantID)
 		if err != nil {
-			logger.Error(ctx, "SLA check failed for tenant", "tenant_id", tenantID, "error", err)
+			logger.Error(ctx, "SLA breach claim failed for tenant", "tenant_id", tenantID, "error", err)
 			continue
 		}
-		totalBreached += count
+		newTransitions += count
 	}
 
-	if totalBreached > 0 {
-		telemetry.SLABreachesTotal.Add(float64(totalBreached))
-		logger.Warn(ctx, "SLA breaches found", "total_breached", totalBreached, "tenants_checked", len(tenantIDs))
+	if newTransitions > 0 {
+		telemetry.SLABreachesTotal.Add(float64(newTransitions))
+		logger.Warn(ctx, "SLA breach transitions claimed", "new_transitions", newTransitions, "tenants_checked", len(tenantIDs))
 	} else {
-		logger.Debug(ctx, "SLA check complete, no breaches", "tenants_checked", len(tenantIDs))
+		logger.Debug(ctx, "SLA check complete, no new breach transitions", "tenants_checked", len(tenantIDs))
 	}
 }
 
-// CheckTenantSLABreaches checks and publishes SLA breach events for a specific tenant.
+// CheckTenantSLABreaches claims the tenant's new (finding, deadline) breaches and
+// appends one outbox event per claim, all in one transaction. It returns the
+// number of committed transitions; on error nothing is claimed or appended.
 func (s *SLAService) CheckTenantSLABreaches(ctx context.Context, tenantID uuid.UUID) (int, error) {
-	breached, err := s.findingRepo.ListSLABreached(ctx, tenantID)
-	if err != nil {
-		return 0, err
-	}
-
-	if len(breached) == 0 {
-		return 0, nil
-	}
-
-	now := time.Now()
-	for _, f := range breached {
-		if f.SLADeadline == nil {
-			continue
+	claimed := 0
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		breached, err := s.findingRepo.ClaimSLABreaches(txCtx, tenantID)
+		if err != nil {
+			return fmt.Errorf("claim sla breaches: %w", err)
 		}
-
-		daysOverdue := int(math.Ceil(now.Sub(*f.SLADeadline).Hours() / 24))
-		if daysOverdue < 0 {
-			continue
-		}
-
-		if s.publisher != nil {
-			if err := s.publisher.Publish(ctx, events.EventFindingSLABreach, events.EventData{
-				ActorType:      "system",
-				ResourceType:   "finding",
-				ResourceID:     f.ID.String(),
-				OrganizationID: f.TenantID.String(),
-				Metadata: map[string]any{
-					"finding_id":   f.ID.String(),
-					"severity":     string(f.Severity),
-					"days_overdue": daysOverdue,
-					"sla_deadline": f.SLADeadline.Format(time.RFC3339),
-					"title":        f.Title,
-				},
-				Timestamp: now,
-			}); err != nil {
-				logger.Warn(ctx, "Failed to publish SLA breach event", "error", err, "finding_id", f.ID)
+		now := s.clock.Now()
+		for _, f := range breached {
+			event, err := slaBreachOutboxEvent(f, now)
+			if err != nil {
+				return err
+			}
+			if err := s.outbox.Append(txCtx, event); err != nil {
+				return fmt.Errorf("append sla breach event for finding %s: %w", f.ID, err)
 			}
 		}
-
-		logger.Warn(ctx, "SLA breach detected",
-			"finding_id", f.ID,
-			"severity", f.Severity,
-			"days_overdue", daysOverdue,
-		)
+		claimed = len(breached)
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("sla breach transaction for tenant %s: %w", tenantID, err)
 	}
+	return claimed, nil
+}
 
-	return len(breached), nil
+// slaBreachOutboxEvent builds the security.finding.sla_breach outbox row for a
+// claimed finding. The relay unmarshals Payload back into events.EventData.
+func slaBreachOutboxEvent(f *domain.Finding, now time.Time) (*repository.OutboxEvent, error) {
+	if f.SLADeadline == nil {
+		return nil, fmt.Errorf("claimed finding %s has no sla deadline", f.ID)
+	}
+	daysOverdue := int(math.Ceil(now.Sub(*f.SLADeadline).Hours() / 24))
+	payload, err := json.Marshal(events.EventData{
+		ActorType:      "system",
+		ResourceType:   "finding",
+		ResourceID:     f.ID.String(),
+		OrganizationID: f.TenantID.String(),
+		Metadata: map[string]any{
+			"finding_id":   f.ID.String(),
+			"severity":     string(f.Severity),
+			"days_overdue": daysOverdue,
+			"sla_deadline": f.SLADeadline.Format(time.RFC3339),
+			"title":        f.Title,
+		},
+		Timestamp: now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal sla breach event for finding %s: %w", f.ID, err)
+	}
+	return &repository.OutboxEvent{
+		EventType: events.EventFindingSLABreach,
+		Payload:   payload,
+		CreatedAt: now,
+	}, nil
 }
 
 // AssignSLADeadline sets the SLA deadline on a finding based on severity and environment.
